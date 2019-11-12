@@ -1,0 +1,15 @@
+[Platform tinybox]
+Yang=vyatta-deviations-foo-tiny-v1.yang
+Features=vyatta-baz-v1:enable-foo,vyatta-op-baz-v1:show-foo
+
+[Platform smallbox]
+Yang=vyatta-deviations-foo-small-v1.yang
+Features=vyatta-baz-v1:enable-foo,vyatta-op-baz-v1:show-foo
+
+[Platform mediumbox]
+Yang=vyatta-deviations-foo-medium-v1.yang
+Features=vyatta-baz-v1:enable-foo, vyatta-op-baz-v1:show-foo,  vyatta-hw-cache-v1:enable
+
+[Platform largebox]
+Yang=foo-large-v1.yang,foo-large-extra-v1.yang
+Features=vyatta-baz-v1:test,vyatta-op-baz-v1:test,vyatta-op-baz-v1:large

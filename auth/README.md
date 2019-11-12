@@ -1,0 +1,3 @@
+# README for golang-brocade-vyattta-configd-auth repo
+
+Created from configd/auth initially ...

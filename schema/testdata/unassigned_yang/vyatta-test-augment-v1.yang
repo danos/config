@@ -1,0 +1,21 @@
+module vyatta-test-augment-v1 {
+	namespace "urn:vyatta.com:test:vyatta-test-augment:1";
+	prefix augment-a;
+
+	import vyatta-test-unassigned-a-v1 {
+		prefix unassigned;
+	}
+
+	organization "Brocade Communications Systems, Inc.";
+	revision 2016-11-04 {
+		description "Unassigned (A) test schema for configd-schema";
+	}
+
+	augment /unassigned:unassignedA {
+		container unassignedA {
+			leaf unassignedALeaf {
+				type string;
+			}
+		}
+	}
+}

@@ -1,0 +1,15 @@
+module vyatta-test-unassigned-a-v1 {
+	namespace "urn:vyatta.com:test:vyatta-test-unassigned-a:1";
+	prefix unassigned-a;
+
+	organization "Brocade Communications Systems, Inc.";
+	revision 2016-11-04 {
+		description "Unassigned (A) test schema for configd-schema";
+	}
+
+	container unassignedA {
+		leaf unassignedALeaf {
+			type string;
+		}
+	}
+}

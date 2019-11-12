@@ -1,0 +1,63 @@
+Source: golang-github-danos-config
+Section: devel
+Priority: extra
+Maintainer: Vyatta Package Maintainers <DL-vyatta-help@att.com>
+Build-Depends:
+ debhelper (>= 9),
+ dh-golang (>= 1.18),
+ dh-vci,
+ golang (>= 1.6),
+ golang-dbus-dev,
+ golang-github-danos-aaa-dev,
+ golang-github-danos-encoding-rfc7951-dev,
+ golang-github-danos-mgmterror-dev,
+ golang-github-danos-utils-audit-dev,
+ golang-github-danos-utils-exec-dev,
+ golang-github-danos-utils-natsort-dev,
+ golang-github-danos-utils-pathutil-dev,
+ golang-github-danos-utils-tsort-dev,
+ golang-github-danos-vci-dev (>= 0.3),
+ golang-github-danos-yang-dev,
+ golang-github-danos-yangd-dev,
+ golang-github-fsnotify-fsnotify-dev,
+ golang-github-go-ini-ini-dev
+Standards-Version: 3.9.8
+
+Package: golang-github-danos-config-dev
+Architecture: all
+Depends:
+ golang-dbus-dev,
+ golang-github-danos-aaa-dev,
+ golang-github-danos-encoding-rfc7951-dev,
+ golang-github-danos-mgmterror-dev,
+ golang-github-danos-utils-audit-dev,
+ golang-github-danos-utils-exec-dev,
+ golang-github-danos-utils-natsort-dev,
+ golang-github-danos-utils-pathutil-dev,
+ golang-github-danos-utils-tsort-dev,
+ golang-github-danos-vci-dev (>= 0.3),
+ golang-github-danos-yang-dev,
+ golang-github-danos-yangd-dev,
+ golang-github-fsnotify-fsnotify-dev,
+ ${misc:Depends}
+Built-Using: ${misc:Built-Using}
+Description: DANOS config libraries
+ Golang config libraries for DANOS.
+ This package contains the source.
+
+Package: acmd
+Architecture: any
+Priority: extra
+Depends: ${misc:Depends}, ${shlibs:Depends}
+Built-Using: ${misc:Built-Using}
+Description: Access Control
+ Controls access to configuration
+
+Package: platform-parser
+Architecture: any
+Priority: extra
+Depends:
+  ${shlibs:Depends}
+Built-Using: ${misc:Built-Using}
+Description: Utility for parsing platform files
+ Utility to parse platform files, generating JSON output.

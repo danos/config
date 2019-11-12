@@ -1,0 +1,15 @@
+module vyatta-test-third-b-v1 {
+	namespace "urn:vyatta.com:test:vyatta-test-third-b:1";
+	prefix third-b;
+
+	organization "Brocade Communications Systems, Inc.";
+	revision 2016-11-04 {
+		description "Third (B) test schema for configd-schema";
+	}
+
+	container thirdB {
+		leaf thirdBLeaf {
+			type string;
+		}
+	}
+}

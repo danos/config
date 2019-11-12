@@ -1,0 +1,15 @@
+module vyatta-test-second-a-v1 {
+	namespace "urn:vyatta.com:test:vyatta-test-second-a:1";
+	prefix second-a;
+
+	organization "Brocade Communications Systems, Inc.";
+	revision 2016-11-04 {
+		description "Second (A) test schema for configd-schema";
+	}
+
+	container secondA {
+		leaf secondALeaf {
+			type string;
+		}
+	}
+}

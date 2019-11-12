@@ -1,0 +1,15 @@
+module vyatta-test-none-v1 {
+	namespace "urn:vyatta.com:test:vyatta-test-none:1";
+	prefix none;
+
+	organization "Brocade Communications Systems, Inc.";
+	revision 2016-11-04 {
+		description "None test schema for configd-schema";
+	}
+
+	container none {
+		leaf noneLeaf {
+			type string;
+		}
+	}
+}

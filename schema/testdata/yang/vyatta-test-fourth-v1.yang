@@ -1,0 +1,15 @@
+module vyatta-test-fourth-v1 {
+	namespace "urn:vyatta.com:test:vyatta-test-fourth:1";
+	prefix fourth;
+
+	organization "Brocade Communications Systems, Inc.";
+	revision 2016-11-04 {
+		description "Fourth test schema for configd-schema";
+	}
+
+	container fourth {
+		leaf fourthLeaf {
+			type string;
+		}
+	}
+}

@@ -1,0 +1,9 @@
+[Vyatta Component]
+Name=net.vyatta.vci.acmd
+Description=Authorisation Control Module
+ExecName=/opt/vyatta/sbin/acmd
+ConfigFile=/opt/vyatta/etc/acmd.conf
+
+[Model net.vyatta.vci.acmd.v1]
+Modules=vyatta-system-acm-configd-v1
+ModelSets=vyatta-v1
