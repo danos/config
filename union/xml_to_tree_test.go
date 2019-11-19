@@ -309,7 +309,8 @@ func TestSetContainer(t *testing.T) {
 func TestSetList(t *testing.T) {
 
 	test_schema :=
-		`list testlist {
+		`container testcontainer {
+		list testlist {
 			key key;
 			leaf key {
 				type string;
@@ -321,18 +322,76 @@ func TestSetList(t *testing.T) {
 			leaf optional {
 				type string;
 			}
-		}`
+		}
+	}`
 
-	input := `<data>` +
+	input := `<data><testcontainer>` +
 		`<testlist xmlns="urn:vyatta.com:test:union">` +
 		`<key xmlns="urn:vyatta.com:test:union">new_entry</key>` +
 		`<optional xmlns="urn:vyatta.com:test:union">custom value</optional>` +
-		`</testlist></data>`
-	expected := `<data><testlist xmlns="urn:vyatta.com:test:union">` +
+		`</testlist></testcontainer></data>`
+	expected := `<data><testcontainer xmlns="urn:vyatta.com:test:union">` +
+		`<testlist xmlns="urn:vyatta.com:test:union">` +
 		`<key xmlns="urn:vyatta.com:test:union">new_entry</key>` +
 		`<default xmlns="urn:vyatta.com:test:union">default</default>` +
 		`<optional xmlns="urn:vyatta.com:test:union">custom value</optional>` +
-		`</testlist></data>`
+		`</testlist></testcontainer></data>`
+
+	root, err := UnmarshalXML(newTestSchema(t, test_schema), []byte(input))
+	if err != nil {
+		t.Errorf("Unexpected failure: %s\n", err)
+		t.Fail()
+		return
+	}
+
+	actual := root.ToXML("data", IncludeDefaults)
+	if string(actual) != expected {
+		t.Errorf("Re-encoded XML does not match.\n   expect=%s\n   actual=%s",
+			expected, string(actual))
+	}
+}
+
+func TestSetListMultipleElements(t *testing.T) {
+
+	test_schema :=
+		`container testcontainer {
+		list testlist {
+			key key;
+			leaf key {
+				type string;
+			}
+			leaf default {
+				type string;
+				default "default";
+			}
+			leaf optional {
+				type string;
+			}
+		}
+	}`
+
+	input := `<data><testcontainer>` +
+		`<testlist>` +
+		`<key>new_entry</key>` +
+		`<optional>custom value</optional>` +
+		`</testlist>` +
+		`<testlist>` +
+		`<key>new_entry2</key>` +
+		`<optional>custom value</optional>` +
+		`</testlist></testcontainer></data>`
+	expected := `<data>` +
+		`<testcontainer xmlns="urn:vyatta.com:test:union">` +
+		`<testlist xmlns="urn:vyatta.com:test:union">` +
+		`<key xmlns="urn:vyatta.com:test:union">new_entry</key>` +
+		`<default xmlns="urn:vyatta.com:test:union">default</default>` +
+		`<optional xmlns="urn:vyatta.com:test:union">custom value</optional>` +
+		`</testlist>` +
+		`<testlist xmlns="urn:vyatta.com:test:union">` +
+		`<key xmlns="urn:vyatta.com:test:union">new_entry2</key>` +
+		`<default xmlns="urn:vyatta.com:test:union">default</default>` +
+		`<optional xmlns="urn:vyatta.com:test:union">custom value</optional>` +
+		`</testlist>` +
+		`</testcontainer></data>`
 
 	root, err := UnmarshalXML(newTestSchema(t, test_schema), []byte(input))
 	if err != nil {

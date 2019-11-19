@@ -31,7 +31,7 @@ func (enc *XMLWriter) EndContainer(n *Container, empty bool, level int) {
 }
 func (enc *XMLWriter) BeginList(n *List, empty bool, level int) {}
 func (enc *XMLWriter) EndList(n *List, empty bool, level int)   {}
-func (enc *XMLWriter) BeginListEntry(n *ListEntry, empty bool, level int) {
+func (enc *XMLWriter) BeginListEntry(n *ListEntry, empty bool, level int, hideSecrets bool) {
 	sch := n.Schema
 	pname := xml.Name{Space: sch.Namespace(), Local: n.parent.Name()}
 	enc.EncodeToken(xml.StartElement{Name: pname})
@@ -40,7 +40,11 @@ func (enc *XMLWriter) BeginListEntry(n *ListEntry, empty bool, level int) {
 	//TODO: fix this for multi part keys
 	kname := xml.Name{Space: sch.Namespace(), Local: sch.Keys()[0]}
 	enc.EncodeToken(xml.StartElement{Name: kname})
-	enc.EncodeToken(xml.CharData([]byte(n.Data().Name())))
+	if redactListEntry(n, hideSecrets) {
+		enc.EncodeToken(xml.CharData("********"))
+	} else {
+		enc.EncodeToken(xml.CharData([]byte(n.Data().Name())))
+	}
 	enc.EncodeToken(xml.EndElement{Name: kname})
 }
 func (enc *XMLWriter) EndListEntry(n *ListEntry, empty bool, level int) {

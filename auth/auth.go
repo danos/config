@@ -21,6 +21,7 @@ import (
 
 	"github.com/danos/aaa"
 	"github.com/danos/utils/audit"
+	"github.com/danos/utils/guard"
 	"github.com/danos/utils/pathutil"
 	"github.com/fsnotify/fsnotify" // in vendor dir
 )
@@ -338,7 +339,10 @@ func (a *AuthGlobal) authzProtocolForUser(uid uint32, groups []string) *aaa.AAAP
 			if !proto.Cfg.CmdAuthor {
 				continue
 			}
-			isValidUser, err := proto.Plugin.ValidUser(uid, groups)
+			isValidUser, err := guard.CatchPanicBoolError(func() (bool, error) {
+				return proto.Plugin.ValidUser(uid, groups)
+			})
+
 			if err != nil {
 				a.Elog.Printf("Error validating user (%d) via AAA protocol %s: %v", uid, aaaName, err)
 				continue

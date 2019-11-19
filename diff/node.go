@@ -47,6 +47,13 @@ func (b BySystem) Len() int           { return len(b) }
 func (b BySystem) Swap(i, j int)      { b[i], b[j] = b[j], b[i] }
 func (b BySystem) Less(i, j int) bool { return natsort.Less(b[i].Name(), b[j].Name()) }
 
+func redactIfRequired(redact bool, text string) string {
+	if redact {
+		return "********"
+	}
+	return text
+}
+
 func (n *Node) buildChild(name string) *Node {
 	newch := n.new.Child(name)
 	oldch := n.old.Child(name)
@@ -386,6 +393,7 @@ func (n *Node) serializeChildren(
 	w io.Writer,
 	path []string,
 	ctxdiff bool,
+	opts *options,
 	lvl int,
 ) {
 	var diffChildren []*Node
@@ -396,12 +404,12 @@ func (n *Node) serializeChildren(
 				continue
 			}
 		}
-		ch.serialize(w, path, ctxdiff, lvl)
+		ch.serialize(w, path, ctxdiff, opts, lvl)
 	}
 	if ctxdiff && len(diffChildren) > 0 {
 		writeCtxdiff(w, path)
 		for _, ch := range diffChildren {
-			ch.serialize(w, path, false, lvl)
+			ch.serialize(w, path, false, opts, lvl)
 		}
 	}
 }
@@ -410,9 +418,10 @@ func (n *Node) serializeContainer(
 	w io.Writer,
 	path []string,
 	ctxdiff bool,
+	opts *options,
 	lvl int,
 ) {
-	if n.serializeCtxDiff(w, path, ctxdiff, true, lvl) {
+	if n.serializeCtxDiff(w, path, ctxdiff, true, false, opts, lvl) {
 		return
 	}
 	printStatus(w, n)
@@ -423,7 +432,7 @@ func (n *Node) serializeContainer(
 		return
 	}
 	fmt.Fprintln(w, " {")
-	n.serializeChildren(w, path, ctxdiff, lvl+1)
+	n.serializeChildren(w, path, ctxdiff, opts, lvl+1)
 	printStatus(w, n)
 	printLevel(w, lvl)
 	fmt.Fprintln(w, "}")
@@ -433,33 +442,45 @@ func (n *Node) serializeList(
 	w io.Writer,
 	path []string,
 	ctxdiff bool,
+	opts *options,
 	lvl int,
 ) {
-	if n.serializeCtxDiff(w, path, ctxdiff, false, lvl) {
+	if n.serializeCtxDiff(w, path, ctxdiff, false, false, opts, lvl) {
 		return
 	}
-	n.serializeChildren(w, path, ctxdiff, lvl)
+	n.serializeChildren(w, path, ctxdiff, opts, lvl)
 }
 
 func (n *Node) serializeListEntry(
 	w io.Writer,
 	path []string,
 	ctxdiff bool,
+	opts *options,
 	lvl int,
 ) {
+	hide := false
+
+	if le, ok := n.schema.(schema.ListEntry); ok {
+		keyname := le.Keys()[0]
+		keynode := le.SchemaChild(keyname)
+		if opts.hideSecrets && keynode.ConfigdExt().Secret {
+			hide = true
+		}
+	}
 	if n.serializeCtxDiff(w,
-		pathutil.CopyAppend(path, n.parent.Name()), ctxdiff, true, lvl) {
+		pathutil.CopyAppend(path, n.parent.Name()), ctxdiff, true, hide, opts, lvl) {
 		return
 	}
 	printStatus(w, n)
 	printLevel(w, lvl)
-	fmt.Fprintf(w, "%s %s", n.parent.Name(), quote(n.Name()))
+	fmt.Fprintf(w, "%s %s", n.parent.Name(),
+		quote(redactIfRequired(hide, n.Name())))
 	if n.Empty() {
 		fmt.Fprint(w, "\n")
 		return
 	}
 	fmt.Fprintln(w, " {")
-	n.serializeChildren(w, path, ctxdiff, lvl+1)
+	n.serializeChildren(w, path, ctxdiff, opts, lvl+1)
 	printStatus(w, n)
 	printLevel(w, lvl)
 	fmt.Fprintln(w, "}")
@@ -469,9 +490,10 @@ func (n *Node) serializeLeaf(
 	w io.Writer,
 	path []string,
 	ctxdiff bool,
+	opts *options,
 	lvl int,
 ) {
-	if n.serializeCtxDiff(w, path, ctxdiff, false, lvl) {
+	if n.serializeCtxDiff(w, path, ctxdiff, false, false, opts, lvl) {
 		return
 	}
 	if _, isEmpty := n.schema.Type().(schema.Empty); isEmpty {
@@ -480,78 +502,87 @@ func (n *Node) serializeLeaf(
 		fmt.Fprintf(w, "%s\n", n.Name())
 		return
 	}
-	n.serializeChildren(w, path, ctxdiff, lvl)
+	n.serializeChildren(w, path, ctxdiff, opts, lvl)
 }
 
 func (n *Node) serializeLeafList(
 	w io.Writer,
 	path []string,
 	ctxdiff bool,
+	opts *options,
 	lvl int,
 ) {
-	if n.serializeCtxDiff(w, path, ctxdiff, false, lvl) {
+	if n.serializeCtxDiff(w, path, ctxdiff, false, false, opts, lvl) {
 		return
 	}
-	n.serializeChildren(w, path, ctxdiff, lvl)
+	n.serializeChildren(w, path, ctxdiff, opts, lvl)
 }
 
 func (n *Node) serializeLeafValue(
 	w io.Writer,
 	path []string,
 	ctxdiff bool,
+	opts *options,
 	lvl int,
 ) {
-	if n.serializeCtxDiff(w, path, ctxdiff, false, lvl) {
+	if n.serializeCtxDiff(w, path, ctxdiff, false,
+		opts.hideSecrets && n.schema.ConfigdExt().Secret,
+		opts, lvl) {
 		return
 	}
 	printStatus(w, n)
 	printLevel(w, lvl)
-	fmt.Fprintf(w, "%s %s\n", n.parent.Name(), quote(n.Name()))
+	fmt.Fprintf(w, "%s %s\n", n.parent.Name(),
+		quote(redactIfRequired(opts.hideSecrets &&
+			n.schema.ConfigdExt().Secret, n.Name())))
 }
 
 func (n *Node) serializeCtxDiff(
 	w io.Writer,
 	path []string,
-	ctxdiff, append bool,
+	ctxdiff, append, redact bool,
+	opts *options,
 	lvl int,
 ) bool {
 	if ctxdiff && n.getStatus() == unchanged {
 		if append {
-			path = pathutil.CopyAppend(path, n.Name())
+			path = pathutil.CopyAppend(path,
+				redactIfRequired(redact, n.Name()))
 		}
-		n.serializeChildren(w, path, ctxdiff, lvl)
+		n.serializeChildren(w, path, ctxdiff, opts, lvl)
 		return true
 	}
 	return false
 }
 
-func (n *Node) serialize(w io.Writer, path []string, ctxdiff bool, lvl int) {
+func (n *Node) serialize(w io.Writer, path []string, ctxdiff bool, opts *options, lvl int) {
 	switch n.schema.(type) {
 	case schema.Container:
-		n.serializeContainer(w, path, ctxdiff, lvl)
+		n.serializeContainer(w, path, ctxdiff, opts, lvl)
 	case schema.List:
-		n.serializeList(w, path, ctxdiff, lvl)
+		n.serializeList(w, path, ctxdiff, opts, lvl)
 	case schema.ListEntry:
-		n.serializeListEntry(w, path, ctxdiff, lvl)
+		n.serializeListEntry(w, path, ctxdiff, opts, lvl)
 	case schema.Leaf:
-		n.serializeLeaf(w, path, ctxdiff, lvl)
+		n.serializeLeaf(w, path, ctxdiff, opts, lvl)
 	case schema.LeafList:
-		n.serializeLeafList(w, path, ctxdiff, lvl)
+		n.serializeLeafList(w, path, ctxdiff, opts, lvl)
 	case schema.LeafValue:
-		n.serializeLeafValue(w, path, ctxdiff, lvl)
+		n.serializeLeafValue(w, path, ctxdiff, opts, lvl)
 	case schema.Tree:
-		n.serializeChildren(w, path, ctxdiff, lvl)
+		n.serializeChildren(w, path, ctxdiff, opts, lvl)
 	}
 }
 
 // If there's nothing to serialize (node is nil) this isn't an error, and
 // we just return the empty string.
-func (n *Node) Serialize(ctxdiff bool) string {
+func (n *Node) Serialize(ctxdiff bool, options ...Option) string {
+	opts := getOptions(options...)
 	if n == nil {
 		return ""
 	}
 	var buf bytes.Buffer
-	n.serialize(&buf, nil, ctxdiff, 0)
+	n.serialize(&buf, nil, ctxdiff, opts, 0)
 	return buf.String()
 }
 

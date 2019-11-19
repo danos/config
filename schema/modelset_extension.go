@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/danos/config/data"
+	"github.com/danos/mgmterror"
 	"github.com/danos/utils/exec"
 	"github.com/danos/vci/services"
 	"github.com/danos/yang/data/datanode"
@@ -34,7 +35,7 @@ type ModelSet interface {
 	OpdPathDescendant([]string) *TmplCompat
 	ListActiveModels(config datanode.DataNode) []string
 	ListActiveOrConfiguredModels(config datanode.DataNode) []string
-	ServiceValidation(datanode.DataNode, commitTimeLogFn) []*exec.Output
+	ServiceValidation(datanode.DataNode, commitTimeLogFn) []error
 	ServiceSetRunning(datanode.DataNode, *map[string]bool) []*exec.Output
 	ServiceSetRunningWithLog(
 		datanode.DataNode,
@@ -83,17 +84,59 @@ func (s *service) GetState(path []string) ([]byte, error) {
 	return s.dispatch.GetState(p)
 }
 
+// Extracts an embedded MgmtError from a dbus.Error body
+func getRpcError(name string, body []interface{}) *mgmterror.MgmtError {
+	const errpfx = "com.vyatta.rpcerror."
+	var re mgmterror.MgmtError
+	if !strings.HasPrefix(name, errpfx) {
+		return nil // not a MgmtError
+	}
+	if err := dbus.Store(body, &re); err != nil {
+		return nil // malformed MgmtError
+	}
+	return &re
+}
+
+// extractValidationErrorFromDbusError()
+//
+// This takes a DBUS error that contains a MgmtError inside, and extracts
+// it.
+func extractValidationErrorFromDbusError(name string, err dbus.Error) error {
+
+	// It's not an error if the component has no config object so quietly
+	// ignore this type of error.
+	if err.Name == "org.freedesktop.DBus.Error.NoSuchObject" {
+		return nil
+	}
+
+	// We expect the error to be an 'RPC' MgmtError, so check for this and
+	// return the error if so.
+	rpcerr := getRpcError(err.Name, err.Body)
+	if rpcerr != nil {
+		return rpcerr
+	}
+
+	// Not an expected error type so do our best to present it.
+	mgmtErr := mgmterror.NewOperationFailedApplicationError()
+	mgmtErr.Path = name
+	mgmtErr.Message = fmt.Sprint(err.Body)
+	return mgmtErr
+}
+
 func (s *service) ValidateCandidate(
 	n Node, dn datanode.DataNode,
-) []*exec.Output {
+) []error {
 
 	jsonTree := s.FilterTree(n, dn)
 	err := s.dispatch.ValidateCandidate(jsonTree)
 	if err != nil {
-		fmt.Printf("Failed to run service validation for %s: %s\n",
-			s.name, err.Error())
+		// We only expect a single error, but this gets wrapped up inside
+		// a DBUS error and needs extracting.
 		if e, ok := err.(dbus.Error); ok {
-			return convertServiceErrors(e)
+			retErr := extractValidationErrorFromDbusError(s.name, e)
+			if retErr != nil {
+				return []error{retErr}
+			}
 		}
 	}
 	return nil
@@ -236,25 +279,25 @@ func (m *modelSet) ListActiveOrConfiguredModels(
 func (m *modelSet) ServiceValidation(
 	dn datanode.DataNode,
 	logFn commitTimeLogFn,
-) []*exec.Output {
+) []error {
 
 	if m.dispatcher == nil {
 		return nil
 	}
 
-	var outs []*exec.Output
+	var errs []error
 	for _, modelName := range m.ListActiveOrConfiguredModels(dn) {
 		startTime := time.Now()
 		svc := m.services[modelName]
-		new_outs := svc.ValidateCandidate(m, dn)
-		if len(new_outs) > 0 {
-			outs = append(outs, new_outs...)
+		new_errs := svc.ValidateCandidate(m, dn)
+		if len(new_errs) > 0 {
+			errs = append(errs, new_errs...)
 		}
 		if logFn != nil {
 			logFn(fmt.Sprintf("Check %s", modelName), startTime)
 		}
 	}
-	return outs
+	return errs
 }
 
 func (m *modelSet) GetModelNameForNamespace(ns string) (string, bool) {

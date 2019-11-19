@@ -73,7 +73,14 @@ func (b *JSONWriter) handleModuleName(n Node) {
 }
 
 func (b *JSONWriter) writeValue(n Node) {
-	switch t := n.GetSchema().Type().(type) {
+	typ := n.GetSchema().Type()
+	if utyp, ok := typ.(schema.Union); ok {
+		// For a union type, get the base type the value matches
+		// so that it can be correctly encoded
+		typ = utyp.MatchType(nil, []string{}, n.Name())
+	}
+
+	switch t := typ.(type) {
 	case schema.Integer:
 		if b.rfc7951 && t.BitWidth() > 32 {
 			// 64-bit integers encoded as JSON string
@@ -126,12 +133,16 @@ func (b *JSONWriter) BeginList(n *List, empty bool, level int) {
 	b.WriteString("\":[")
 }
 
-func (b *JSONWriter) BeginListEntry(n *ListEntry, empty bool, level int) {
+func (b *JSONWriter) BeginListEntry(n *ListEntry, empty bool, level int, hideSecrets bool) {
 	sch := n.Schema
 	b.WriteString("{\"")
 	b.WriteString(sch.Keys()[0])
 	b.WriteString("\":")
-	b.writeValue(n)
+	if redactListEntry(n, hideSecrets) {
+		b.WriteString(quote("********"))
+	} else {
+		b.writeValue(n)
+	}
 	if !empty {
 		b.WriteByte(',')
 	}

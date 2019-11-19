@@ -20,8 +20,12 @@ func (b *InternalJSONWriter) BeginList(n *List, empty bool, level int) {
 	b.WriteString(n.Name())
 	b.WriteString("\":{")
 }
-func (b *InternalJSONWriter) BeginListEntry(n *ListEntry, empty bool, level int) {
-	fmt.Fprintf(b, "\"%s\":{", n.Name())
+func (b *InternalJSONWriter) BeginListEntry(n *ListEntry, empty bool, level int, hideSecrets bool) {
+	if redactListEntry(n, hideSecrets) {
+		fmt.Fprintf(b, "\"********\":{")
+	} else {
+		fmt.Fprintf(b, "\"%s\":{", n.Name())
+	}
 }
 func (b *InternalJSONWriter) EndList(n *List, empty bool, level int) {
 	b.WriteByte('}')

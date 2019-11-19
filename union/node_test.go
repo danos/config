@@ -109,7 +109,11 @@ func getFullSchema(buf []byte) (schema.ModelSet, error) {
 }
 
 func getInitialTree(t *testing.T) Node {
-	st, err := getSchema([]byte(baseSchema))
+	return getInitialTreeFromSchema(t, baseSchema)
+}
+
+func getInitialTreeFromSchema(t *testing.T, schema string) Node {
+	st, err := getSchema([]byte(schema))
 	if err != nil {
 		t.Fatal(err)
 	}

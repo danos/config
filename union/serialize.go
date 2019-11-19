@@ -21,7 +21,7 @@ type Serializer interface {
 
 	BeginList(n *List, empty bool, level int)
 	EndList(n *List, empty bool, level int)
-	BeginListEntry(n *ListEntry, empty bool, level int)
+	BeginListEntry(n *ListEntry, empty bool, level int, hidesecrets bool)
 	EndListEntry(n *ListEntry, empty bool, level int)
 
 	BeginLeaf(n *Leaf, empty bool, level int, hideSecrets bool)

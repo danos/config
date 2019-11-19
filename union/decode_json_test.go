@@ -260,7 +260,15 @@ func assertTreeMatchesRFC7951(t *testing.T, root Node, expectedRFC7951 string) {
 // that the re-encoded (as JSON) matches expectations.
 func expectedPassTest(t *testing.T, inputMsg []byte, expJSON string,
 ) {
-	sch := bytes.NewBufferString(jsonSchemaTemplate)
+	expectedPassTestWithTemplate(t, inputMsg, expJSON, jsonSchemaTemplate)
+}
+
+func expectedPassTestWithTemplate(
+	t *testing.T,
+	inputMsg []byte,
+	expJSON, template string,
+) {
+	sch := bytes.NewBufferString(template)
 	compiledSchema, err := getFullSchema(sch.Bytes())
 	if err != nil {
 		t.Fatalf("Failed to compile schema")
@@ -289,7 +297,15 @@ func expectedPassRFC7951(
 	inputMsg []byte,
 	expRFC7951 string,
 ) {
-	sch := bytes.NewBufferString(jsonSchemaTemplate)
+	expectedPassRFC7951WithTemplate(t, inputMsg, expRFC7951, jsonSchemaTemplate)
+}
+
+func expectedPassRFC7951WithTemplate(
+	t *testing.T,
+	inputMsg []byte,
+	expRFC7951, template string,
+) {
+	sch := bytes.NewBufferString(template)
 	compiledSchema, err := getSchema(sch.Bytes())
 	if err != nil {
 		t.Fatalf("Failed to compile schema")

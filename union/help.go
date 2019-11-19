@@ -28,7 +28,25 @@ func getHelpMap(auth Auther, n Node, path []string, fromSchema bool) map[string]
 		m = make(map[string]string)
 	}
 
-	if n.GetSchema().ConfigdExt().Secret {
+	ext := n.GetSchema().ConfigdExt()
+
+	switch v := n.GetSchema().(type) {
+	case schema.List:
+		// For a list node, we need to know if the key is a secret value.
+		// - get the first child if it exists, it will be a ListEntry.
+		// - find the key node, which will be a child of the ListEntry,
+		//   and use the secret status on the key node
+		for _, ch := range n.Children() {
+			sch := ch.GetSchema()
+			keynode := sch.SchemaChild(v.Keys()[0])
+			if keynode != nil {
+				ext = keynode.ConfigdExt()
+			}
+			break
+		}
+	}
+
+	if ext.Secret {
 		if !authorize(auth, pathutil.CopyAppend(path, n.Name()), "secrets") {
 			return m
 		}

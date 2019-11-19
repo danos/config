@@ -7,6 +7,7 @@ package auth
 
 import (
 	"github.com/danos/aaa"
+	"github.com/danos/utils/guard"
 	"github.com/danos/utils/pathutil"
 )
 
@@ -31,7 +32,9 @@ func authEnvToMap(env *AuthEnv) map[string]string {
 }
 
 func (a *AaaAuther) AccountCommand(uid uint32, groups []string, cmd []string, pathAttrs *pathutil.PathAttrs) {
-	err := a.proto.Plugin.Account("conf-mode", uid, groups, cmd, pathAttrs, authEnvToMap(&a.auth.env))
+	err := guard.CatchPanicErrorOnly(func() error {
+		return a.proto.Plugin.Account("conf-mode", uid, groups, cmd, pathAttrs, authEnvToMap(&a.auth.env))
+	})
 	if err != nil {
 		a.auth.authGlobal.Elog.Printf("Accounting error via AAA protocol %s: %s",
 			a.proto.Cfg.Name, err)
@@ -39,7 +42,9 @@ func (a *AaaAuther) AccountCommand(uid uint32, groups []string, cmd []string, pa
 }
 
 func (a *AaaAuther) AuthorizeCommand(uid uint32, groups []string, cmd []string, pathAttrs *pathutil.PathAttrs) bool {
-	authed, err := a.proto.Plugin.Authorize("conf-mode", uid, groups, cmd, pathAttrs)
+	authed, err := guard.CatchPanicBoolError(func() (bool, error) {
+		return a.proto.Plugin.Authorize("conf-mode", uid, groups, cmd, pathAttrs)
+	})
 	if err != nil {
 		a.auth.authGlobal.Elog.Printf("Authorization error via AAA protocol %s: %v",
 			a.proto.Cfg.Name, err)

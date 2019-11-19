@@ -41,11 +41,16 @@ func (b *StringWriter) EndContainer(n *Container, empty bool, level int) {
 }
 func (b *StringWriter) BeginList(n *List, empty bool, level int) {}
 func (b *StringWriter) EndList(n *List, empty bool, level int)   {}
-func (b *StringWriter) BeginListEntry(n *ListEntry, empty bool, level int) {
+func (b *StringWriter) BeginListEntry(n *ListEntry, empty bool, level int, hideSecrets bool) {
 	b.writeLevelString(level)
 	b.WriteString(n.parent.Name())
 	b.WriteByte(' ')
-	b.WriteString(quote(n.Name()))
+
+	if redactListEntry(n, hideSecrets) {
+		b.WriteString(quote("********"))
+	} else {
+		b.WriteString(quote(n.Name()))
+	}
 	if empty {
 		return
 	}

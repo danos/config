@@ -1,4 +1,5 @@
-// Copyright (c) 2019, AT&T Intellectual Property. All rights reserved.
+// Copyright (c) 2019, AT&T Intellectual Property.
+// All rights reserved.
 //
 // Copyright (c) 2016-2017 by Brocade Communications Systems, Inc.
 // All rights reserved.
@@ -26,15 +27,15 @@ func init() {
 	}
 }
 
-type expectedError struct {
+type ExpectedError struct {
 	expected string
 }
 
-func NewExpectedError(expect string) *expectedError {
-	return &expectedError{expected: expect}
+func NewExpectedError(expect string) *ExpectedError {
+	return &ExpectedError{expected: expect}
 }
 
-func (e *expectedError) Matches(t *testing.T, actual error) {
+func (e *ExpectedError) Matches(t *testing.T, actual error) {
 	if actual == nil {
 		t.Fatalf("Unexpected success")
 	}

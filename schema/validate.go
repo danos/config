@@ -45,7 +45,7 @@ func ValidateSchemaWithLog(
 		service_errors := ms.ServiceValidation(dn, logFn)
 		if len(service_errors) > 0 {
 			ok = false
-			outs = append(outs, service_errors...)
+			errs = append(errs, service_errors...)
 		}
 	}
 

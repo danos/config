@@ -19,7 +19,9 @@ type ListEntry struct {
 
 func (n *ListEntry) serialize(b Serializer, path []string, lvl int, opts *unionOptions) {
 	empty := n.serializeIsEmpty(opts.includeDefaults)
-	b.BeginListEntry(n, empty, lvl)
+	hideSecrets := opts.shouldHideSecrets(path)
+
+	b.BeginListEntry(n, empty, lvl, hideSecrets)
 	if empty {
 		b.EndListEntry(n, empty, lvl)
 		return

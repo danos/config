@@ -1051,12 +1051,28 @@ func (n *node) Get(auth Auther, path []string) ([]string, error) {
 	// This allows this check to be performed only once, applying result to
 	// descendant path elements.
 	sch := schema.Descendant(n.schema, path)
-	if sch != nil && sch.ConfigdExt().Secret {
-		if !authorize(auth, path, "secrets") {
-			hide = true
+
+	if sch != nil {
+		secret := sch.ConfigdExt().Secret
+
+		switch v := sch.(type) {
+		case schema.List:
+			// For a list node, we need to get secret status from the keynode.
+			// To get the keynode, we need find the lists child ListEntry, and
+			// from there get the keynode.
+			lentry := sch.Child(v.Keys()[0])
+			if lentry != nil {
+				keynode := lentry.Child(v.Keys()[0])
+				secret = keynode.(schema.ExtendedNode).ConfigdExt().Secret
+			}
+		}
+
+		if secret {
+			if !authorize(auth, path, "secrets") {
+				hide = true
+			}
 		}
 	}
-
 	for _, val := range ret {
 		if !authorize(auth, pathutil.CopyAppend(path, val), "read") {
 			continue

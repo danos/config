@@ -27,6 +27,19 @@ const test_schema = `container top {
 				}
 			}
 		}
+
+		list secret-list {
+			key list-key;
+
+			leaf list-key {
+				type string;
+				configd:secret true;
+			}
+
+			leaf data {
+				type string;
+			}
+		}
 	}`
 
 func verifyUnmarshal(
@@ -62,6 +75,31 @@ func verifyUnmarshal(
 	return testNode
 }
 
+func verifyUnmarshalAndSerializeFromDescendantPass(
+	t *testing.T,
+	input, testPath string,
+	inputEnc string, descendant []string, outputEnc, expected string,
+	option UnionOption,
+) {
+	var err error
+	var actual StringWriter
+
+	testNode := verifyUnmarshal(t, input, testPath, inputEnc)
+
+	// Do marshal from specified descendant
+	if descendant != nil {
+		testNode, err = testNode.descendant(descendant, []string{})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	testNode.Serialize(&actual, nil, option)
+	if actual.String() != expected {
+		t.Errorf("Re-encoded %s does not match.\n   expect=%s\n   actual=%s",
+			outputEnc, expected, actual.String())
+	}
+}
 func verifyUnmarshalAndRemarshalFromDescendantPass(
 	t *testing.T,
 	input, testPath string,
@@ -307,4 +345,63 @@ func TestXMLSerializationAuthFilter(t *testing.T) {
 	// And also from a descendant node
 	verifyUnmarshalAndRemarshalFromDescendantPass(
 		t, xmlInput, "", "xml", []string{"top"}, "xml", xmlInputWithoutMyLeaf, Authorizer(auther))
+}
+
+const xmlSecretList = `<data>` +
+	`<top xmlns="urn:vyatta.com:test:union">` +
+	`<secret-list xmlns="urn:vyatta.com:test:union">` +
+	`<list-key xmlns="urn:vyatta.com:test:union">outer_entry</list-key>` +
+	`<data xmlns="urn:vyatta.com:test:union">data value</data>` +
+	`</secret-list></top></data>`
+
+const xmlSecretListRedacted = `<data>` +
+	`<top xmlns="urn:vyatta.com:test:union">` +
+	`<secret-list xmlns="urn:vyatta.com:test:union">` +
+	`<list-key xmlns="urn:vyatta.com:test:union">********</list-key>` +
+	`<data xmlns="urn:vyatta.com:test:union">data value</data>` +
+	`</secret-list></top></data>`
+
+const jsonSecretListRedacted = `{"top":{"secret-list":[{"list-key":"********","data":"data value"}]}}`
+const rfc7951SecretListRedacted = `{"test-union:top":{"secret-list":[{"list-key":"********","data":"data value"}]}}`
+const internalSecretListRedacted = `{"top":{"secret-list":{"********":{"data":"data value"}}}}`
+
+func TestSerializationAuthSecretListRedacted(t *testing.T) {
+	auther := newTestAuther(auth.TestAutherAllowAll(), false)
+
+	verifyUnmarshalAndRemarshalFromDescendantPass(
+		t, xmlSecretList, "", "xml", nil, "xml", xmlSecretListRedacted, Authorizer(auther))
+
+	verifyUnmarshalAndRemarshalFromDescendantPass(
+		t, xmlSecretList, "", "xml", nil, "json", jsonSecretListRedacted, Authorizer(auther))
+
+	verifyUnmarshalAndRemarshalFromDescendantPass(
+		t, xmlSecretList, "", "xml", nil, "rfc7951", rfc7951SecretListRedacted, Authorizer(auther))
+
+	verifyUnmarshalAndRemarshalFromDescendantPass(
+		t, xmlSecretList, "", "xml", nil, "internal", internalSecretListRedacted, Authorizer(auther))
+}
+
+const jsonSecretList = `{"top":{"secret-list":[{"list-key":"outer_entry","data":"data value"}]}}`
+const rfc7951SecretList = `{"test-union:top":{"secret-list":[{"list-key":"outer_entry","data":"data value"}]}}`
+const internalSecretList = `{"top":{"secret-list":{"outer_entry":{"data":"data value"}}}}`
+
+func TestSerializationAuthSecretListViewable(t *testing.T) {
+	auther := newTestAuther(auth.TestAutherAllowAll(), true)
+
+	verifyUnmarshalAndRemarshalFromDescendantPass(
+		t, xmlSecretList, "", "xml", nil, "xml", xmlSecretList, Authorizer(auther))
+
+	verifyUnmarshalAndRemarshalFromDescendantPass(
+		t, xmlSecretList, "", "xml", nil, "json", jsonSecretList, Authorizer(auther))
+
+	verifyUnmarshalAndRemarshalFromDescendantPass(
+		t, xmlSecretList, "", "xml", nil, "rfc7951", rfc7951SecretList, Authorizer(auther))
+
+	verifyUnmarshalAndRemarshalFromDescendantPass(
+		t, xmlSecretList, "", "xml", nil, "internal", internalSecretList, Authorizer(auther))
+}
+
+func TestSerializationSecretListCLI(t *testing.T) {
+	getInitialTreeFromSchema(t, baseSchema)
+
 }
