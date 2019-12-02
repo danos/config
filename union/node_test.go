@@ -8,6 +8,7 @@
 package union
 
 import (
+	"strconv"
 	"testing"
 
 	"github.com/danos/config/data"
@@ -77,14 +78,18 @@ module test-union {
 }
 `
 
-func getSchema(buf []byte) (schema.ModelSet, error) {
+func getSchema(bufs ...[]byte) (schema.ModelSet, error) {
 	const name = "schema"
-	t, err := schema.Parse(name, string(buf))
-	if err != nil {
-		return nil, err
+	mods := make(map[string]*parse.Tree)
+	for index, b := range bufs {
+		t, err := schema.Parse(name+strconv.Itoa(index), string(b))
+		if err != nil {
+			return nil, err
+		}
+		mod := t.Root.Argument().String()
+		mods[mod] = t
 	}
 
-	var mods = map[string]*parse.Tree{name: t}
 	st, err := schema.CompileModules(mods, "", false, compile.IsConfig, nil)
 	if err != nil {
 		return nil, err

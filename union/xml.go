@@ -15,12 +15,34 @@ import (
 	"github.com/danos/config/data"
 	"github.com/danos/config/schema"
 	"github.com/danos/yang/data/encoding"
+	yangschema "github.com/danos/yang/schema"
 )
 
 type XMLWriter struct {
 	*xml.Encoder
 }
 
+func getPrefixAttributes(n Node, typ yangschema.Type, val string) []xml.Attr {
+	prefixes := make([]xml.Attr, 0)
+
+	if utyp, ok := typ.(schema.Union); ok {
+		// For a union type, get the base type the value matches
+		// so that it can be correctly encoded
+		typ = utyp.MatchType(nil, []string{}, val)
+	}
+
+	if idref, ok := typ.(schema.Identityref); ok {
+		for _, idn := range idref.Identities() {
+			if val == idn.Val {
+				if n.GetSchema().Namespace() != idn.Namespace {
+					prefixes = append(prefixes, xml.Attr{Name: xml.Name{Local: "xmlns:" + idn.Module}, Value: idn.Namespace})
+				}
+			}
+		}
+	}
+
+	return prefixes
+}
 func (enc *XMLWriter) BeginContainer(n *Container, empty bool, level int) {
 	name := xml.Name{Space: n.Schema.Namespace(), Local: n.Name()}
 	enc.EncodeToken(xml.StartElement{Name: name})
@@ -33,13 +55,14 @@ func (enc *XMLWriter) BeginList(n *List, empty bool, level int) {}
 func (enc *XMLWriter) EndList(n *List, empty bool, level int)   {}
 func (enc *XMLWriter) BeginListEntry(n *ListEntry, empty bool, level int, hideSecrets bool) {
 	sch := n.Schema
+	prefixes := getPrefixAttributes(n, sch.Type(), n.Data().Name())
 	pname := xml.Name{Space: sch.Namespace(), Local: n.parent.Name()}
 	enc.EncodeToken(xml.StartElement{Name: pname})
 
 	//create list 'key' nodes
 	//TODO: fix this for multi part keys
 	kname := xml.Name{Space: sch.Namespace(), Local: sch.Keys()[0]}
-	enc.EncodeToken(xml.StartElement{Name: kname})
+	enc.EncodeToken(xml.StartElement{Name: kname, Attr: prefixes})
 	if redactListEntry(n, hideSecrets) {
 		enc.EncodeToken(xml.CharData("********"))
 	} else {
@@ -64,13 +87,15 @@ func (enc *XMLWriter) writeLeafValue(n Node, empty bool, level int, hideSecrets 
 		enc.EncodeToken(xml.EndElement{Name: name})
 		return
 	}
+
 	hide := hideSecrets && n.GetSchema().ConfigdExt().Secret
 	vals := n.SortedChildren()
 	for _, v := range vals {
 		//Errors only occur if we run out of buffer
 		//just ignore them, there is no error path
 		//here.
-		enc.EncodeToken(xml.StartElement{Name: name})
+		prefixes := getPrefixAttributes(n, v.GetSchema().Type(), v.Name())
+		enc.EncodeToken(xml.StartElement{Name: name, Attr: prefixes})
 		if hide {
 			enc.EncodeToken(xml.CharData("********"))
 		} else {

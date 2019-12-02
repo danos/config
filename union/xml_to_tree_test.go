@@ -8,6 +8,7 @@
 package union
 
 import (
+	"bytes"
 	"fmt"
 	"strings"
 	"testing"
@@ -21,14 +22,13 @@ const schemaTemplate = `
 module test-union {
     namespace "urn:vyatta.com:test:union";
     prefix utest;
-    organization "Brocade Communications Systems, Inc.";
+    organization "AT&T Inc.";
     contact
-        "Brocade Communications Systems, Inc.
-         Postal: 130 Holger Way
-                 San Jose, CA 95134
-         E-mail: support@Brocade.com
-         Web: www.brocade.com";
-    revision 2015-03-11 {
+        "AT&T
+         Postal: 208 S. Akard Street
+                 Dallas, TX 75202
+         Web: www.attcom";
+    revision 2019-11-29 {
         description "Test schema for unions";
     }
 
@@ -46,6 +46,15 @@ func newTestSchema(t *testing.T, inputStuff string) schema.ModelSet {
 	return st
 }
 
+func newTestSchemas(t *testing.T, buf ...[]byte) schema.ModelSet {
+	st, err := getSchema(buf...)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	return st
+
+}
 func TestSetLeaf(t *testing.T) {
 
 	// Note: natural order
@@ -81,6 +90,185 @@ func TestSetLeaf(t *testing.T) {
 		`</data>`
 
 	root, err := UnmarshalXML(newTestSchema(t, test_schema), []byte(input))
+	if err != nil {
+		t.Errorf("Unexpected failure: %s\n", err)
+	}
+
+	actual := root.ToXML("data", IncludeDefaults)
+	if string(actual) != expected {
+		t.Errorf("Re-encoded XML does not match.\n   expect=%s\n   actual=%s",
+			expected, actual)
+	}
+}
+
+func TestSetLeafIdentityNamespacePrefixes(t *testing.T) {
+
+	remoteSchema :=
+		`
+module test-remote {
+    namespace "urn:vyatta.com:test:remote";
+    prefix remote;
+    organization "AT&T Inc.";
+    contact
+        "AT&T
+         Postal: 208 S. Akard Street
+                 Dallas, TX 75202
+         Web: www.attcom";
+    revision 2019-11-29 {
+        description "Test schema for unions";
+    }
+	identity animal;
+		identity cat {
+			base animal;
+		}
+		identity dog {
+			base animal;
+		}
+}
+		`
+	test_schema :=
+		`
+module test-union {
+    namespace "urn:vyatta.com:test:union";
+    prefix union;
+    import test-remote {prefix remote;}
+    organization "AT&T Inc.";
+    contact
+        "AT&T
+         Postal: 208 S. Akard Street
+                 Dallas, TX 75202
+         Web: www.attcom";
+    revision 2019-11-29 {
+        description "Test schema for unions";
+    }
+    leaf an {
+        type identityref {
+             base remote:animal;
+        }
+    }
+}`
+	// Accept a namespace prefix that does not match module name
+	input := `<data>` +
+		`<an xmlns="urn:vyatta.com:test:union" xmlns:a="urn:vyatta.com:test:remote">a:cat</an>` +
+		`</data>`
+	// encode again using module name as namespace prefix
+	expected := `<data>` +
+		`<an xmlns="urn:vyatta.com:test:union" xmlns:test-remote="urn:vyatta.com:test:remote">test-remote:cat</an>` +
+		`</data>`
+
+	schm := newTestSchemas(t, bytes.NewBufferString(test_schema).Bytes(),
+		bytes.NewBufferString(remoteSchema).Bytes())
+
+	root, err := UnmarshalXML(schm, []byte(input))
+	if err != nil {
+		t.Errorf("Unexpected failure: %s\n", err)
+	}
+
+	actual := root.ToXML("data", IncludeDefaults)
+	if string(actual) != expected {
+		t.Errorf("Re-encoded XML does not match.\n   expect=%s\n   actual=%s",
+			expected, actual)
+	}
+}
+
+func TestSetIdentityrefUnionAndListKey(t *testing.T) {
+	remoteSchema :=
+		`
+module test-remote {
+    namespace "urn:vyatta.com:test:remote";
+    prefix remote;
+    organization "AT&T Inc.";
+    contact
+        "AT&T
+         Postal: 208 S. Akard Street
+                 Dallas, TX 75202
+         Web: www.attcom";
+    revision 2019-11-29 {
+        description "Test schema for unions";
+    }
+	identity mineral;
+	identity quartz {
+		base mineral;
+	}
+	identity saphire {
+		base mineral;
+	}
+	identity animal;
+		identity cat {
+			base animal;
+		}
+		identity mouse {
+			base animal;
+		}
+}
+		`
+	test_schema :=
+		`
+module test-union {
+    namespace "urn:vyatta.com:test:union";
+    prefix union;
+    import test-remote {prefix remote;}
+    organization "AT&T Inc.";
+    contact
+        "AT&T
+         Postal: 208 S. Akard Street
+                 Dallas, TX 75202
+         Web: www.attcom";
+    revision 2019-11-29 {
+        description "Test schema for unions";
+    }
+    list alist {
+        key key;
+
+        leaf key {
+            type identityref {
+                base remote:animal;
+            }
+        }
+        leaf name {
+            type string;
+        }
+    }
+    leaf mineral {
+        type union {
+            type uint8;
+            type union {
+                type identityref {
+                    base remote:mineral;
+                }
+            }
+        }
+    }
+}`
+
+	// test identityref within a union
+	// and identityref as a list key
+	input := `<data>` +
+		`<mineral xmlns="urn:vyatta.com:test:union" xmlns:t="urn:vyatta.com:test:remote">t:quartz</mineral>` +
+		`<alist xmlns="urn:vyatta.com:test:union">` +
+		`<key xmlns="urn:vyatta.com:test:union" xmlns:foo="urn:vyatta.com:test:remote">foo:cat</key>` +
+		`<name xmlns="urn:vyatta.com:test:union">tom</name>` +
+		`</alist>` +
+		`<alist xmlns="urn:vyatta.com:test:union">` +
+		`<key xmlns="urn:vyatta.com:test:union" xmlns:i="urn:vyatta.com:test:remote">i:mouse</key>` +
+		`<name xmlns="urn:vyatta.com:test:union">jerry</name></alist>` +
+		`</data>`
+	expected := `<data>` +
+		`<alist xmlns="urn:vyatta.com:test:union">` +
+		`<key xmlns="urn:vyatta.com:test:union" xmlns:test-remote="urn:vyatta.com:test:remote">test-remote:cat</key>` +
+		`<name xmlns="urn:vyatta.com:test:union">tom</name>` +
+		`</alist>` +
+		`<alist xmlns="urn:vyatta.com:test:union">` +
+		`<key xmlns="urn:vyatta.com:test:union" xmlns:test-remote="urn:vyatta.com:test:remote">test-remote:mouse</key>` +
+		`<name xmlns="urn:vyatta.com:test:union">jerry</name>` +
+		`</alist>` +
+		`<mineral xmlns="urn:vyatta.com:test:union" xmlns:test-remote="urn:vyatta.com:test:remote">test-remote:quartz</mineral>` +
+		`</data>`
+
+	schm := newTestSchemas(t, bytes.NewBufferString(test_schema).Bytes(),
+		bytes.NewBufferString(remoteSchema).Bytes())
+
+	root, err := UnmarshalXML(schm, []byte(input))
 	if err != nil {
 		t.Errorf("Unexpected failure: %s\n", err)
 	}
