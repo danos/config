@@ -31,7 +31,7 @@ func GetHelp(n yang.Node) string {
 const runhelp = "Execute the current command"
 const runkey = "<Enter>"
 
-func getTypePatternHelp(t yang.Type) map[string]string {
+func getTypePatternHelp(p yang.Node, t yang.Type) map[string]string {
 	switch v := t.(type) {
 	case Boolean:
 		m := make(map[string]string)
@@ -41,6 +41,8 @@ func getTypePatternHelp(t yang.Type) map[string]string {
 		return m
 	case Enumeration:
 		return v.getHelpMap()
+	case Identityref:
+		return v.getHelpMap(p.Module())
 	case Decimal64:
 		h := v.ConfigdExt().GetTypeHelp()
 		strs := make([]string, 0, len(v.Rbs()))
@@ -90,7 +92,7 @@ func getTypePatternHelp(t yang.Type) map[string]string {
 		m := make(map[string]string)
 		h := v.ConfigdExt().GetTypeHelp()
 		for _, t := range v.Typs() {
-			for k, h2 := range getTypePatternHelp(t) {
+			for k, h2 := range getTypePatternHelp(p, t) {
 				if h2 == "" {
 					h2 = h
 				}
@@ -120,13 +122,13 @@ func getTypePatternHelp(t yang.Type) map[string]string {
 func getPatternHelp(n yang.Node) map[string]string {
 	switch v := n.(type) {
 	case Leaf, LeafList, OpdOption:
-		return getTypePatternHelp(n.Type())
+		return getTypePatternHelp(n, n.Type())
 	case ListEntry:
 		return getPatternHelp(v.Child(v.Keys()[0]))
 	case List:
 		return getPatternHelp(v.Child("Dummy"))
 	case OpdArgument:
-		tp := getTypePatternHelp(n.Type())
+		tp := getTypePatternHelp(n, n.Type())
 		for a, b := range tp {
 			if b == "" {
 				tp[a] = GetHelp(n)

@@ -10,6 +10,7 @@ package schema
 import (
 	"fmt"
 	"reflect"
+	"strings"
 
 	"github.com/danos/mgmterror"
 	"github.com/danos/yang/parse"
@@ -218,6 +219,71 @@ func newEnumeration(
 
 	helpMap := parseEnumHelpMap(p, base)
 	return &enumeration{y, ext, helpMap}, nil
+}
+
+type Identityref interface {
+	yang.Identityref
+	hasExtensions
+	getHelpMap(parentPrefix string) map[string]string
+}
+
+type identityref struct {
+	yang.Identityref
+	*extensions
+	helpMap map[string]string
+}
+
+// Compile time check that the concrete type meets the interface
+var _ Identityref = (*identityref)(nil)
+
+func (i *identityref) getHelpMap(parentPrefix string) map[string]string {
+	pfx := parentPrefix + ":"
+	helpMap := make(map[string]string)
+	localHelp := i.ConfigdExt().GetHelp()
+
+	for val, help := range i.helpMap {
+		if help == "" {
+			help = localHelp
+		}
+		val = strings.TrimPrefix(val, pfx)
+		helpMap[val] = help
+	}
+
+	return helpMap
+}
+
+func getIdentities(p parse.Node, helpMap map[string]string) {
+	for _, i := range p.ChildrenByType(parse.NodeIdentity) {
+		if i.Status() != "obsolete" {
+			nm := i.Root().Name() + ":" + i.Name()
+			help := parseExtensions(i).Help
+			if help == "" {
+				help = parseExtensions(i).OpdHelp
+			}
+			helpMap[nm] = help
+		}
+		getIdentities(i, helpMap)
+	}
+}
+
+func parseIdentityHelpMap(p parse.Node, base yang.Type, idef yang.Identityref) map[string]string {
+	helpMap := make(map[string]string)
+
+	if base != nil {
+		return base.(*identityref).helpMap
+	}
+	for _, ident := range p.ChildrenByType(parse.NodeIdentity) {
+		getIdentities(ident, helpMap)
+	}
+	return helpMap
+}
+
+func newIdentityref(
+	p parse.Node, base yang.Type, y yang.Identityref, ext *extensions,
+) (yang.Type, error) {
+
+	helpMap := parseIdentityHelpMap(p, base, y)
+	return &identityref{y, ext, helpMap}, nil
 }
 
 type Integer interface {
@@ -450,7 +516,7 @@ func (*CompilationExtensions) ExtendType(
 	if len(pext.Syntax) > 0 {
 		switch t.(type) {
 		case yang.Boolean, yang.Empty, yang.Enumeration,
-			yang.Bits, yang.Leafref, yang.InstanceId:
+			yang.Bits, yang.Leafref, yang.InstanceId, yang.Identityref:
 			return nil, fmt.Errorf("configd:syntax restriction is not valid for this type")
 		case yang.Union:
 			return nil, fmt.Errorf("cannot restrict configd:syntax of a union type - " +
@@ -470,6 +536,8 @@ func (*CompilationExtensions) ExtendType(
 		return &empty{y, ext}, nil
 	case yang.Enumeration:
 		return newEnumeration(p, base, y, ext)
+	case yang.Identityref:
+		return newIdentityref(p, base, y, ext)
 	case yang.Integer:
 		return newInteger(p, base, y, ext)
 	case yang.Uinteger:
