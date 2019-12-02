@@ -256,3 +256,237 @@ func TestUnionHelp(t *testing.T) {
 	assertHelpMapContains(t, helpMap, "<0..65535>", "Leaf level help")
 	assertHelpMapContains(t, helpMap, "<0..4294967295>", "uint32 help")
 }
+
+func TestIdentityrefHelp(t *testing.T) {
+	const remoteTemplate = `
+module test-remote {
+        namespace "urn:vyatta.com:test:remote";
+        prefix test-remote;
+	import test-configd-compile {prefix test;}
+        organization "AT&T Inc.";
+        revision 2019-11-14 {
+                description "Test remote schema";
+        }
+        %s
+}
+`
+	schema_remote := bytes.NewBufferString(fmt.Sprintf(
+		remoteTemplate,
+		`identity asteroids {
+			base test:video-games;
+		}
+		identity donkey-kong {
+			base test:video-games;
+			configd:help "Avoid those barrels";
+         }`))
+
+	schema_text := bytes.NewBufferString(fmt.Sprintf(
+		schemaTemplate,
+		`identity video-games;
+		identity space-invaders {
+			base video-games;
+			configd:help "Shoot those aliens";
+		}
+		identity pac-man {
+			base video-games;
+			configd:help "Avoid those ghosts";
+		}
+		identity manic-miner {
+			base video-games;
+		}
+		typedef games {
+			type identityref {
+				base video-games;
+				configd:help "Classic video games";
+			}
+
+		}
+		leaf games {
+			type games;
+         }`))
+
+	ms, err := GetConfigSchema(schema_text.Bytes(), schema_remote.Bytes())
+	if err != nil {
+		t.Fatalf("Unexpected compilation failure:\n  %s\n\n", err.Error())
+	}
+
+	node := ms.Child("games")
+	helpMap := node.(ExtendedNode).HelpMap()
+
+	assertHelpMapContains(t, helpMap, "manic-miner", "Classic video games")
+	assertHelpMapContains(t, helpMap, "pac-man", "Avoid those ghosts")
+	assertHelpMapContains(t, helpMap, "space-invaders", "Shoot those aliens")
+	assertHelpMapContains(t, helpMap, "test-remote:asteroids", "Classic video games")
+	assertHelpMapContains(t, helpMap, "test-remote:donkey-kong", "Avoid those barrels")
+	assertHelpMapDoesNotContain(t, helpMap, "video-games")
+}
+
+func TestIdentityrefUsesHelp(t *testing.T) {
+	const remoteTemplate = `
+module test-remote {
+        namespace "urn:vyatta.com:test:remote";
+        prefix test-remote;
+	import test-configd-compile {prefix test;}
+        organization "AT&T Inc.";
+        revision 2019-11-14 {
+                description "Test remote schema";
+        }
+        %s
+}
+`
+	schema_remote := bytes.NewBufferString(fmt.Sprintf(
+		remoteTemplate,
+		`identity asteroids {
+			base test:video-games;
+		}
+		identity donkey-kong {
+			base test:video-games;
+			configd:help "Avoid those barrels";
+		}
+		uses test:classic-video-games;
+	 `))
+
+	schema_text := bytes.NewBufferString(fmt.Sprintf(
+		schemaTemplate,
+		`identity video-games;
+		identity space-invaders {
+			base video-games;
+			configd:help "Shoot those aliens";
+		}
+		identity pac-man {
+			base video-games;
+			configd:help "Avoid those ghosts";
+		}
+		identity manic-miner {
+			base video-games;
+		}
+		typedef games {
+			type identityref {
+				base video-games;
+				configd:help "Classic video games";
+			}
+
+		}
+		grouping classic-video-games {
+			leaf games {
+				type games;
+			}
+         }`))
+
+	ms, err := GetConfigSchema(schema_text.Bytes(), schema_remote.Bytes())
+	if err != nil {
+		t.Fatalf("Unexpected compilation failure:\n  %s\n\n", err.Error())
+	}
+
+	node := ms.Child("games")
+	helpMap := node.(ExtendedNode).HelpMap()
+
+	// Check that identityref in uses not local to grouping definition
+	// uses correct namespace
+	assertHelpMapContains(t, helpMap, "test-configd-compile:manic-miner", "Classic video games")
+	assertHelpMapContains(t, helpMap, "test-configd-compile:pac-man", "Avoid those ghosts")
+	assertHelpMapContains(t, helpMap, "test-configd-compile:space-invaders", "Shoot those aliens")
+	assertHelpMapContains(t, helpMap, "asteroids", "Classic video games")
+	assertHelpMapContains(t, helpMap, "donkey-kong", "Avoid those barrels")
+	// Ensure root identity is not included
+	assertHelpMapDoesNotContain(t, helpMap, "video-games")
+}
+
+func TestIdentityrefUnionHelp(t *testing.T) {
+	const remoteTemplate = `
+module test-remote {
+        namespace "urn:vyatta.com:test:remote";
+        prefix test-remote;
+	import test-configd-compile {prefix test;}
+        organization "AT&T Inc.";
+        revision 2019-11-14 {
+                description "Test remote schema";
+        }
+        %s
+}
+`
+	schema_remote := bytes.NewBufferString(fmt.Sprintf(
+		remoteTemplate,
+		`identity asteroids {
+			base test:video-games;
+		}
+		identity donkey-kong {
+			base test:video-games;
+			configd:help "Avoid those barrels";
+		}
+
+		identity board-games;
+		identity chess {
+			base board-games;
+		}
+		identity risk {
+			base board-games;
+			configd:help "Conquer the world";
+		}
+
+		leaf games {
+			type union {
+				type test:games;
+				type identityref {
+					base board-games;
+					configd:help "Board game";
+				}
+			}
+		}
+	 `))
+
+	schema_text := bytes.NewBufferString(fmt.Sprintf(
+		schemaTemplate,
+		`identity video-games;
+		identity space-invaders {
+			base video-games;
+			configd:help "Shoot those aliens";
+		}
+		identity pac-man {
+			base video-games;
+			configd:help "Avoid those ghosts";
+		}
+		identity manic-miner {
+			base video-games;
+		}
+		typedef games {
+			type union {
+				type enumeration {
+					enum monopoly {
+						configd:help "Avoid bankruptcy";
+					}
+					enum checkers {
+						configd:help "Also known as draughts";
+					}
+				}
+				type identityref {
+					base video-games;
+					configd:help "Classic video games";
+				}
+			}
+		}
+         `))
+
+	ms, err := GetConfigSchema(schema_text.Bytes(), schema_remote.Bytes())
+	if err != nil {
+		t.Fatalf("Unexpected compilation failure:\n  %s\n\n", err.Error())
+	}
+
+	node := ms.Child("games")
+	helpMap := node.(ExtendedNode).HelpMap()
+
+	// Check that identityref in uses not local to grouping definition
+	// uses correct namespace
+	assertHelpMapContains(t, helpMap, "test-configd-compile:manic-miner", "Classic video games")
+	assertHelpMapContains(t, helpMap, "test-configd-compile:pac-man", "Avoid those ghosts")
+	assertHelpMapContains(t, helpMap, "test-configd-compile:space-invaders", "Shoot those aliens")
+	assertHelpMapContains(t, helpMap, "asteroids", "Classic video games")
+	assertHelpMapContains(t, helpMap, "donkey-kong", "Avoid those barrels")
+	assertHelpMapContains(t, helpMap, "chess", "Board game")
+	assertHelpMapContains(t, helpMap, "risk", "Conquer the world")
+	assertHelpMapContains(t, helpMap, "monopoly", "Avoid bankruptcy")
+	assertHelpMapContains(t, helpMap, "checkers", "Also known as draughts")
+	// Ensure root identities are not included
+	assertHelpMapDoesNotContain(t, helpMap, "video-games")
+	assertHelpMapDoesNotContain(t, helpMap, "board-games")
+}

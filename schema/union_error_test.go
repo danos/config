@@ -45,6 +45,59 @@ func TestEnumerationsInError(t *testing.T) {
 	)
 }
 
+func TestIdentityrefInError(t *testing.T) {
+	schema_text := bytes.NewBufferString(fmt.Sprintf(
+		schemaTemplate,
+		`identity greek;
+		 identity alpha {
+			 base greek;
+		 }
+		 identity beta {
+			base greek;
+		 }
+		 typedef allgreek {
+			type identityref {
+				base greek;
+			}
+		 }
+		 leaf tdef {
+			type allgreek;
+		 }
+
+		leaf idrefLeaf {
+             type union {
+                 type enumeration {
+			 enum one;
+			 enum two;
+		 }
+		 type uint32;
+		 type enumeration {
+			enum three;
+			enum four;
+		 }
+		 type identityref {
+			base greek;
+		 }
+             }
+         }`))
+
+	expect := []string{"Must have one of the following values:",
+		"between 0 and 4294967295",
+		"alpha",
+		"beta",
+		"one",
+		"two",
+		"three",
+		"four"}
+
+	expectValidationError(
+		t,
+		schema_text,
+		"idrefLeaf", "zero",
+		expect...,
+	)
+}
+
 func TestPatternHelpInError(t *testing.T) {
 	schema_text := bytes.NewBufferString(fmt.Sprintf(
 		schemaTemplate,
