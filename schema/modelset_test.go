@@ -179,7 +179,7 @@ func checkNumberOfServices(
 	}
 }
 
-func checkService(
+func checkServiceNamespaces(
 	t *testing.T,
 	serviceMap map[string]*service,
 	modelName string,
@@ -187,7 +187,12 @@ func checkService(
 
 	service, ok := serviceMap[modelName]
 	if !ok {
-		t.Fatalf("Unable to find service '%s'\n", modelName)
+		// Only an error if there are any namespaces to check.  Otherwise
+		// this is a model for a different model set.
+		if len(namespaces) != 0 {
+			t.Fatalf("Unable to find service '%s'\n", modelName)
+		}
+		return
 	}
 
 	var ns string
@@ -210,17 +215,6 @@ func dumpServiceMap(serviceMap map[string]*service) {
 		for ns, _ := range svc.modMap {
 			fmt.Printf("\tNS: %s\n", ns)
 		}
-	}
-}
-
-func checkNoService(
-	t *testing.T,
-	serviceMap map[string]*service,
-	modelName string) {
-
-	_, ok := serviceMap[modelName]
-	if ok {
-		t.Fatalf("Found service '%s'\n", modelName)
 	}
 }
 
@@ -286,22 +280,23 @@ func TestMultipleComponentRegistration(t *testing.T) {
 
 	checkNumberOfServices(t, serviceMap, 4)
 
-	checkService(t, serviceMap,
+	checkServiceNamespaces(t, serviceMap,
 		"net.vyatta.test.first",
 		[]string{NsPfx + "vyatta-test-first:1"})
 
-	checkService(t, serviceMap,
+	checkServiceNamespaces(t, serviceMap,
 		"net.vyatta.test.second",
 		[]string{NsPfx + "vyatta-test-second-a:1",
 			NsPfx + "vyatta-test-second-b:1"})
 
-	checkNoService(t, serviceMap,
-		"net.vyatta.test.third.a")
-	checkService(t, serviceMap,
+	checkServiceNamespaces(t, serviceMap,
+		"net.vyatta.test.third.a",
+		[]string{})
+	checkServiceNamespaces(t, serviceMap,
 		"net.vyatta.test.third.b",
 		[]string{NsPfx + "vyatta-test-third-b:1"})
 
-	checkService(t, serviceMap,
+	checkServiceNamespaces(t, serviceMap,
 		"net.vyatta.test.fourth",
 		[]string{NsPfx + "vyatta-test-fourth:1"})
 }
@@ -598,7 +593,7 @@ func TestUnassignedNamespacesAssignedToDefaultComponent(t *testing.T) {
 
 	checkNumberOfServices(t, serviceMap, 3)
 
-	checkService(t, serviceMap,
+	checkServiceNamespaces(t, serviceMap,
 		"net.vyatta.test.default",
 		[]string{
 			NsPfx + "vyatta-test-unassigned-a:1",

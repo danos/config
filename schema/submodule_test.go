@@ -103,7 +103,7 @@ func TestModuleAndSubmoduleInSameVCIComponent(t *testing.T) {
 
 	checkNumberOfServices(t, serviceMap, 1)
 
-	checkService(t, serviceMap,
+	checkServiceNamespaces(t, serviceMap,
 		"net.vyatta.vci.test.mod-and-submod",
 		[]string{
 			NsPfx + "vyatta-test-mod1-v1",
@@ -138,7 +138,7 @@ func TestModuleAndSubmoduleInDefaultComp(t *testing.T) {
 
 	checkNumberOfServices(t, serviceMap, 1)
 
-	checkService(t, serviceMap,
+	checkServiceNamespaces(t, serviceMap,
 		"net.vyatta.vci.test.default",
 		[]string{
 			NsPfx + "vyatta-test-mod1-v1",
@@ -177,10 +177,10 @@ func TestSubmoduleInDifferentComponent(t *testing.T) {
 
 	checkNumberOfServices(t, serviceMap, 2)
 
-	checkService(t, serviceMap,
+	checkServiceNamespaces(t, serviceMap,
 		"net.vyatta.vci.test.mod",
 		[]string{NsPfx + "vyatta-test-mod1-v1"})
-	checkService(t, serviceMap,
+	checkServiceNamespaces(t, serviceMap,
 		"net.vyatta.vci.test.submod",
 		[]string{"vyatta-test-submod1-v1@" + NsPfx + "vyatta-test-mod1-v1"})
 }
@@ -217,10 +217,10 @@ func TestModuleInVCICompSubmoduleInDefaultComp(t *testing.T) {
 
 	checkNumberOfServices(t, serviceMap, 2)
 
-	checkService(t, serviceMap,
+	checkServiceNamespaces(t, serviceMap,
 		"net.vyatta.vci.test.mod",
 		[]string{NsPfx + "vyatta-test-mod1-v1"})
-	checkService(t, serviceMap,
+	checkServiceNamespaces(t, serviceMap,
 		"net.vyatta.vci.test.default",
 		[]string{"vyatta-test-submod1-v1@" + NsPfx + "vyatta-test-mod1-v1"})
 }
@@ -257,10 +257,10 @@ func TestModuleInDefaultCompSubmoduleInVCIComp(t *testing.T) {
 
 	checkNumberOfServices(t, serviceMap, 2)
 
-	checkService(t, serviceMap,
+	checkServiceNamespaces(t, serviceMap,
 		"net.vyatta.vci.test.default",
 		[]string{NsPfx + "vyatta-test-mod1-v1"})
-	checkService(t, serviceMap,
+	checkServiceNamespaces(t, serviceMap,
 		"net.vyatta.vci.test.submod",
 		[]string{"vyatta-test-submod1-v1@" + NsPfx + "vyatta-test-mod1-v1"})
 }
