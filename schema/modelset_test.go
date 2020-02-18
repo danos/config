@@ -195,15 +195,27 @@ func checkServiceNamespaces(
 		return
 	}
 
+	// First check 'owned' namespaces that will be sent to component's Set()
+	// function on commit
+	checkNamespacesInMap(t, service.modMap, modelName, namespaces)
+}
+
+// Ensure exact match for namespaces in modMap
+func checkNamespacesInMap(
+	t *testing.T,
+	modMap map[string]struct{},
+	modelName string,
+	expNamespaces []string,
+) {
 	var ns string
-	if len(namespaces) != len(service.modMap) {
+	if len(expNamespaces) != len(modMap) {
 		t.Fatalf("%s: Expected %d namespaces, but found %d\n",
-			modelName, len(namespaces), len(service.modMap))
+			modelName, len(expNamespaces), len(modMap))
 	}
-	for _, ns = range namespaces {
-		if _, ok := service.modMap[ns]; !ok {
+	for _, ns = range expNamespaces {
+		if _, ok := modMap[ns]; !ok {
 			t.Fatalf("Unable to find '%s' namespace in:\n%v",
-				ns, service.modMap)
+				ns, modMap)
 			return
 		}
 	}
