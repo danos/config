@@ -345,13 +345,15 @@ func checkServiceNamespaces(
 	t *testing.T,
 	serviceMap map[string]*service,
 	modelName string,
-	namespaces []string) {
+	expSetAndCheckNamespaces []string,
+	expCheckOnlyNamespaces []string,
+) {
 
 	service, ok := serviceMap[modelName]
 	if !ok {
 		// Only an error if there are any namespaces to check.  Otherwise
 		// this is a model for a different model set.
-		if len(namespaces) != 0 {
+		if len(expSetAndCheckNamespaces) != 0 {
 			t.Fatalf("Unable to find service '%s'\n", modelName)
 		}
 		return
@@ -359,7 +361,7 @@ func checkServiceNamespaces(
 
 	// First check 'owned' namespaces that will be sent to component's Set()
 	// function on commit
-	checkNamespacesInMap(t, service.modMap, modelName, namespaces)
+	checkNamespacesInMap(t, service.modMap, modelName, expSetAndCheckNamespaces)
 }
 
 // Ensure exact match for namespaces in modMap

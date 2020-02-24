@@ -108,7 +108,8 @@ func TestModuleAndSubmoduleInSameVCIComponent(t *testing.T) {
 		[]string{
 			NsPfx + "vyatta-test-mod1-v1",
 			"vyatta-test-submod1-v1@" + NsPfx + "vyatta-test-mod1-v1",
-		})
+		},
+		[]string{})
 }
 
 func TestModuleAndSubmoduleInDefaultComp(t *testing.T) {
@@ -143,7 +144,8 @@ func TestModuleAndSubmoduleInDefaultComp(t *testing.T) {
 		[]string{
 			NsPfx + "vyatta-test-mod1-v1",
 			"vyatta-test-submod1-v1@" + NsPfx + "vyatta-test-mod1-v1",
-		})
+		},
+		[]string{})
 }
 
 func TestSubmoduleInDifferentComponent(t *testing.T) {
@@ -179,10 +181,12 @@ func TestSubmoduleInDifferentComponent(t *testing.T) {
 
 	checkServiceNamespaces(t, serviceMap,
 		"net.vyatta.vci.test.mod",
-		[]string{NsPfx + "vyatta-test-mod1-v1"})
+		[]string{NsPfx + "vyatta-test-mod1-v1"},
+		[]string{})
 	checkServiceNamespaces(t, serviceMap,
 		"net.vyatta.vci.test.submod",
-		[]string{"vyatta-test-submod1-v1@" + NsPfx + "vyatta-test-mod1-v1"})
+		[]string{"vyatta-test-submod1-v1@" + NsPfx + "vyatta-test-mod1-v1"},
+		[]string{})
 }
 
 func TestModuleInVCICompSubmoduleInDefaultComp(t *testing.T) {
@@ -219,10 +223,12 @@ func TestModuleInVCICompSubmoduleInDefaultComp(t *testing.T) {
 
 	checkServiceNamespaces(t, serviceMap,
 		"net.vyatta.vci.test.mod",
-		[]string{NsPfx + "vyatta-test-mod1-v1"})
+		[]string{NsPfx + "vyatta-test-mod1-v1"},
+		[]string{})
 	checkServiceNamespaces(t, serviceMap,
 		"net.vyatta.vci.test.default",
-		[]string{"vyatta-test-submod1-v1@" + NsPfx + "vyatta-test-mod1-v1"})
+		[]string{"vyatta-test-submod1-v1@" + NsPfx + "vyatta-test-mod1-v1"},
+		[]string{})
 }
 
 func TestModuleInDefaultCompSubmoduleInVCIComp(t *testing.T) {
@@ -259,10 +265,12 @@ func TestModuleInDefaultCompSubmoduleInVCIComp(t *testing.T) {
 
 	checkServiceNamespaces(t, serviceMap,
 		"net.vyatta.vci.test.default",
-		[]string{NsPfx + "vyatta-test-mod1-v1"})
+		[]string{NsPfx + "vyatta-test-mod1-v1"},
+		[]string{})
 	checkServiceNamespaces(t, serviceMap,
 		"net.vyatta.vci.test.submod",
-		[]string{"vyatta-test-submod1-v1@" + NsPfx + "vyatta-test-mod1-v1"})
+		[]string{"vyatta-test-submod1-v1@" + NsPfx + "vyatta-test-mod1-v1"},
+		[]string{})
 }
 
 // Testing of augment / refine doesn't belong here as it needs configuration

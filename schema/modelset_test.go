@@ -91,23 +91,28 @@ func TestMultipleComponentRegistration(t *testing.T) {
 
 	checkServiceNamespaces(t, serviceMap,
 		"net.vyatta.test.first",
-		[]string{NsPfx + "vyatta-test-first:1"})
+		[]string{NsPfx + "vyatta-test-first:1"},
+		[]string{})
 
 	checkServiceNamespaces(t, serviceMap,
 		"net.vyatta.test.second",
 		[]string{NsPfx + "vyatta-test-second-a:1",
-			NsPfx + "vyatta-test-second-b:1"})
+			NsPfx + "vyatta-test-second-b:1"},
+		[]string{})
 
 	checkServiceNamespaces(t, serviceMap,
 		"net.vyatta.test.third.a",
+		[]string{},
 		[]string{})
 	checkServiceNamespaces(t, serviceMap,
 		"net.vyatta.test.third.b",
-		[]string{NsPfx + "vyatta-test-third-b:1"})
+		[]string{NsPfx + "vyatta-test-third-b:1"},
+		[]string{})
 
 	checkServiceNamespaces(t, serviceMap,
 		"net.vyatta.test.fourth",
-		[]string{NsPfx + "vyatta-test-fourth:1"})
+		[]string{NsPfx + "vyatta-test-fourth:1"},
+		[]string{})
 }
 
 const noModuleComp = `[Vyatta Component]
@@ -408,5 +413,6 @@ func TestUnassignedNamespacesAssignedToDefaultComponent(t *testing.T) {
 			NsPfx + "vyatta-test-unassigned-a:1",
 			NsPfx + "vyatta-test-unassigned-b:1",
 			NsPfx + "vyatta-test-augment:1",
-		})
+		},
+		[]string{})
 }
