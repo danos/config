@@ -48,20 +48,28 @@ type ModelSet interface {
 }
 
 type service struct {
-	name     string
-	dispatch yangd.Service
-	modMap   map[string]struct{}
-	nsFilter func(s yang.Node, d datanode.DataNode,
+	name      string
+	dispatch  yangd.Service
+	modMap    map[string]struct{}
+	setFilter func(s yang.Node, d datanode.DataNode,
+		children []datanode.DataNode) bool
+	checkMap    map[string]struct{}
+	checkFilter func(s yang.Node, d datanode.DataNode,
 		children []datanode.DataNode) bool
 }
 
-func (s *service) FilterTree(n Node, dn datanode.DataNode) []byte {
-	filteredCandidate := yang.FilterTree(n, dn, s.nsFilter)
+func (s *service) FilterSetTree(n Node, dn datanode.DataNode) []byte {
+	filteredCandidate := yang.FilterTree(n, dn, s.setFilter)
+	return encoding.ToRFC7951(n, filteredCandidate)
+}
+
+func (s *service) FilterCheckTree(n Node, dn datanode.DataNode) []byte {
+	filteredCandidate := yang.FilterTree(n, dn, s.checkFilter)
 	return encoding.ToRFC7951(n, filteredCandidate)
 }
 
 func (s *service) HasConfiguration(n Node, dn datanode.DataNode) bool {
-	return string(s.FilterTree(n, dn)) != "{}"
+	return string(s.FilterSetTree(n, dn)) != "{}"
 }
 
 func convertServiceErrors(e dbus.Error) []*exec.Output {
@@ -127,7 +135,7 @@ func (s *service) ValidateCandidate(
 	n Node, dn datanode.DataNode,
 ) []error {
 
-	jsonTree := s.FilterTree(n, dn)
+	jsonTree := s.FilterCheckTree(n, dn)
 	err := s.dispatch.ValidateCandidate(jsonTree)
 	if err != nil {
 		// We only expect a single error, but this gets wrapped up inside
@@ -143,7 +151,7 @@ func (s *service) ValidateCandidate(
 }
 
 func (s *service) SetRunning(n Node, dn datanode.DataNode) []*exec.Output {
-	jsonTree := s.FilterTree(n, dn)
+	jsonTree := s.FilterSetTree(n, dn)
 	err := s.dispatch.SetRunning(jsonTree)
 	if err != nil {
 		fmt.Printf("Failed to run service provisioning for %s: %s\n",
@@ -184,7 +192,7 @@ func (c *CompilationExtensions) ExtendModelSet(
 ) (yang.ModelSet, error) {
 
 	modelToNamespaceMap, globalNSMap, defaultModel, err :=
-		getModelToNamespaceMapForModelSet(
+		getModelToNamespaceMapsForModelSet(
 			m, VyattaV1ModelSet, c.ComponentConfig)
 	if err != nil {
 		return nil, err

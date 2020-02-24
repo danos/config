@@ -15,10 +15,13 @@
 package schema
 
 import (
+	"os"
 	"testing"
 
 	"github.com/danos/config/testutils/assert"
 	"github.com/danos/utils/exec"
+	"github.com/danos/vci/conf"
+	"github.com/danos/yang/testutils"
 )
 
 // TEST DATA
@@ -415,4 +418,45 @@ func TestUnassignedNamespacesAssignedToDefaultComponent(t *testing.T) {
 			NsPfx + "vyatta-test-augment:1",
 		},
 		[]string{})
+}
+
+const checkSchemaSnippet = `
+container checkCont {
+	leaf checkLeaf {
+		type string;
+	}
+}`
+
+const requiredForCheckSchemaSnippet = `
+container reqForCheckCont {
+	leaf reqForCheckLeaf {
+		type uint16;
+	}
+}`
+
+func TestImportsRequiredForCheck(t *testing.T) {
+	schemas := []*testutils.TestSchema{
+		testutils.NewTestSchema("vyatta-test-check-v1", "check1").
+			AddSchemaSnippet(checkSchemaSnippet),
+		testutils.NewTestSchema("vyatta-required-for-check-v1", "required1").
+			AddSchemaSnippet(requiredForCheckSchemaSnippet),
+	}
+
+	vciComp := conf.CreateTestDotComponentFile("test-check").
+		AddModelWithCheckImport("net.vyatta.vci.test.test-check",
+			[]string{"vyatta-test-check-v1"},
+			[]string{conf.BaseModelSet},
+			[]string{"vyatta-required-for-check-v1"})
+
+	tmpYangDir := createYangDir(t, "checkTest", schemas)
+	defer os.RemoveAll(tmpYangDir)
+
+	serviceMap, _ := getTestServiceMap(t, tmpYangDir, vciComp.String())
+
+	checkNumberOfServices(t, serviceMap, 1)
+
+	checkServiceNamespaces(t, serviceMap,
+		"net.vyatta.vci.test.test-check",
+		[]string{NsPfx + "vyatta-test-check-v1"},
+		[]string{NsPfx + "vyatta-required-for-check-v1"})
 }

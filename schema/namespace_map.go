@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2019, AT&T Intellectual Property. All rights reserved.
+// Copyright (c) 2017-2020, AT&T Intellectual Property. All rights reserved.
 //
 // Copyright (c) 2016-2017 by Brocade Communications Systems, Inc.
 // All rights reserved.
@@ -19,20 +19,27 @@ import (
 	"strings"
 )
 
+type modelToNamespaceMap map[string]*nsMaps
+
+type nsMaps struct {
+	setMap   map[string]struct{}
+	checkMap map[string]struct{}
+}
+
 // Returns map of models to namespaces, plus the modelName for the 'default'
 // component, if any.  Error returned if >1 default component, or if default
 // component has any explicitly allocated namespaces.
-func getModelToNamespaceMapForModelSet(
+func getModelToNamespaceMapsForModelSet(
 	m yang.ModelSet,
 	modelSetName string,
 	comps []*conf.ServiceConfig,
 ) (
-	map[string]map[string]struct{},
+	modelToNamespaceMap,
 	map[string]string,
 	string,
 	error) {
 
-	modelToNSMap, globalNSMap, defaultCompModelName, errs :=
+	modelToNSMaps, globalNSMap, defaultCompModelName, errs :=
 		createNSMapForModelSetFromComponents(m, modelSetName, comps)
 
 	if errs.Len() > 0 {
@@ -40,7 +47,7 @@ func getModelToNamespaceMapForModelSet(
 			"Problems found when validating components:\n\n%s\n",
 			errs.String())
 	}
-	return modelToNSMap, globalNSMap, defaultCompModelName, nil
+	return modelToNSMaps, globalNSMap, defaultCompModelName, nil
 }
 
 // createNSMapForModelSetFromComponents - create the 2 required maps
@@ -102,12 +109,12 @@ func createNSMapForModelSetFromComponents(
 	modelSetName string,
 	comps []*conf.ServiceConfig,
 ) (
-	map[string]map[string]struct{},
+	modelToNamespaceMap,
 	map[string]string,
 	string,
 	bytes.Buffer,
 ) {
-	modelToNSMap := make(map[string]map[string]struct{})
+	modelToNSMap := make(modelToNamespaceMap)
 	globalNSMap := make(map[string]string)
 	modelMap := make(map[string]bool)
 	var defaultCompModelName string
@@ -122,26 +129,61 @@ func createNSMapForModelSetFromComponents(
 		}
 		modelMap[model.Name] = true
 
-		compNSMap := updateGlobalAndCreateCompNSMapsFromModelModules(
+		maps := updateGlobalAndCreateCompNSMapsFromModelModules(
 			comp, model, m, &globalNSMap, &errs)
 
 		if comp.DefaultComp {
 			if err := validateDefaultComponent(defaultCompModelName,
-				compNSMap, model.Name); err != nil {
+				maps.setMap, model.Name); err != nil {
 				errs.WriteString(err.Error())
 				return nil, nil, "", errs
 			}
 			defaultCompModelName = model.Name
 		}
-		modelToNSMap[model.Name] = compNSMap
+		modelToNSMap[model.Name] = maps
 	}
 
 	if defaultCompModelName != "" {
-		modelToNSMap[defaultCompModelName] =
-			createDefaultNamespaceList(m, globalNSMap)
+		defMap := createDefaultNamespaceList(m, globalNSMap)
+		modelToNSMap[defaultCompModelName] = &nsMaps{
+			setMap: defMap, checkMap: defMap}
 	}
 
 	return modelToNSMap, globalNSMap, defaultCompModelName, errs
+}
+
+// verifyModuleValidAndReturnNamespace - validate module and return namespace
+//
+// Check give <modOrSubmodName> exists as valid module or submodule in the
+// modelset, and if so, return the namespace for it.  If not, return empty
+// string.
+func verifyModuleValidAndReturnNamespace(
+	m yang.ModelSet,
+	modOrSubmodName string,
+	compName string,
+) string {
+	namespace := ""
+	for _, module := range m.Modules() {
+		if module.Identifier() == modOrSubmodName {
+			namespace = module.(Model).Namespace()
+			break
+		}
+	}
+	if namespace == "" {
+		for _, submod := range m.Submodules() {
+			if submod.Identifier() == modOrSubmodName {
+				namespace = createSubmodNS(
+					submod.Identifier(), submod.Namespace())
+				break
+			}
+		}
+		if namespace == "" {
+			fmt.Printf("%s:\n\t%s (sub)module not present in image.\n",
+				compName, modOrSubmodName)
+		}
+	}
+
+	return namespace
 }
 
 func updateGlobalAndCreateCompNSMapsFromModelModules(
@@ -150,32 +192,25 @@ func updateGlobalAndCreateCompNSMapsFromModelModules(
 	m yang.ModelSet,
 	globalNSMap *map[string]string,
 	errs *bytes.Buffer,
-) map[string]struct{} {
+) *nsMaps {
 
-	compNSMap := make(map[string]struct{})
+	compSetMap := make(map[string]struct{})
+	compCheckMap := make(map[string]struct{})
+	retMaps := &nsMaps{
+		setMap:   compSetMap,
+		checkMap: compCheckMap,
+	}
 
+	// Create complete namespace map for Set() call, and baseline map for
+	// Check() calls.
+	//
 	// model.Modules contains module and submodule names
 	for _, modOrSubmodName := range model.Modules {
-		namespace := ""
-		for _, module := range m.Modules() {
-			if module.Identifier() == modOrSubmodName {
-				namespace = module.(Model).Namespace()
-				break
-			}
-		}
+
+		namespace := verifyModuleValidAndReturnNamespace(
+			m, modOrSubmodName, comp.Name)
 		if namespace == "" {
-			for _, submod := range m.Submodules() {
-				if submod.Identifier() == modOrSubmodName {
-					namespace = createSubmodNS(
-						submod.Identifier(), submod.Namespace())
-					break
-				}
-			}
-			if namespace == "" {
-				fmt.Printf("%s:\n\t%s (sub)module not present in image.\n",
-					comp.Name, modOrSubmodName)
-				continue
-			}
+			continue
 		}
 
 		if modelsShareNamespace(
@@ -184,9 +219,24 @@ func updateGlobalAndCreateCompNSMapsFromModelModules(
 		}
 
 		(*globalNSMap)[namespace] = model.Name
-		compNSMap[namespace] = struct{}{}
+		compSetMap[namespace] = struct{}{}
+		compCheckMap[namespace] = struct{}{}
 	}
-	return compNSMap
+
+	// Now we add the extra modules needed by the Check() call to allow
+	// validation code to access candidate configuration owned by other
+	// components.
+	for _, modOrSubmodName := range model.ImportsForCheck {
+		namespace := verifyModuleValidAndReturnNamespace(
+			m, modOrSubmodName, comp.Name)
+		if namespace == "" {
+			continue
+		}
+
+		compCheckMap[namespace] = struct{}{}
+	}
+
+	return retMaps
 }
 
 // createSubmodNs - return string that provides unique identifier
@@ -279,19 +329,19 @@ func createDefaultNamespaceList(
 // - a function to check if a given YANG node belongs to this service.
 //
 func getServiceMap(
-	disp yangd.Dispatcher, modelToNamespaceMap map[string]map[string]struct{},
+	disp yangd.Dispatcher, modelToNSMap modelToNamespaceMap,
 ) map[string]*service {
 
-	service_map := make(map[string]*service, len(modelToNamespaceMap))
+	service_map := make(map[string]*service, len(modelToNSMap))
 
-	for name, modMap := range modelToNamespaceMap {
+	for name, modMap := range modelToNSMap {
 		serv, err := disp.NewService(name)
 		if err != nil {
 			fmt.Printf("Failed to create service: %s\n", err.Error())
 			continue
 		}
-		copyModMap := modMap // Avoid 'closure pitfall'
-		nsFilter := func(s yang.Node, d datanode.DataNode,
+		setMap := modMap.setMap // Avoid 'closure pitfall'
+		setFilter := func(s yang.Node, d datanode.DataNode,
 			children []datanode.DataNode) bool {
 			if len(children) != 0 {
 				return true
@@ -300,10 +350,30 @@ func getServiceMap(
 			if s.Submodule() != "" {
 				filter = createSubmodNS(s.Submodule(), filter)
 			}
-			_, ok := copyModMap[filter]
+			_, ok := setMap[filter]
 			return ok
 		}
-		service_map[name] = &service{name, serv, modMap, nsFilter}
+		checkMap := modMap.checkMap // Avoid 'closure pitfall'
+		checkFilter := func(s yang.Node, d datanode.DataNode,
+			children []datanode.DataNode) bool {
+			if len(children) != 0 {
+				return true
+			}
+			filter := s.Namespace()
+			if s.Submodule() != "" {
+				filter = createSubmodNS(s.Submodule(), filter)
+			}
+			_, ok := checkMap[filter]
+			return ok
+		}
+		service_map[name] = &service{
+			name:        name,
+			dispatch:    serv,
+			modMap:      modMap.setMap,
+			setFilter:   setFilter,
+			checkMap:    modMap.checkMap,
+			checkFilter: checkFilter,
+		}
 	}
 	return service_map
 }
