@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2019 by AT&T Intellectual Property
+// Copyright (c) 2017-2020 by AT&T Intellectual Property
 // All rights reserved.
 //
 // SPDX-License-Identifier: MPL-2.0
