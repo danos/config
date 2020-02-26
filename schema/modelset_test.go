@@ -21,10 +21,10 @@ import (
 	"os"
 	"testing"
 
+	"github.com/danos/config/testutils/assert"
 	"github.com/danos/utils/exec"
 	"github.com/danos/vci/conf"
 	"github.com/danos/yang/compile"
-	"github.com/danos/yang/testutils/assert"
 	"github.com/danos/yangd"
 )
 
@@ -333,7 +333,7 @@ func TestComponentWithNonExistentModule(t *testing.T) {
 		return nil, []error{err}, true
 	}
 
-	_, errs, _, debug := runTestAndCaptureStdout(fn)
+	_, errs, _, debug := assert.RunTestAndCaptureStdout(fn)
 	if len(errs) != 0 {
 		t.Fatalf("Unexpected error checking for non-existent module: %s",
 			errs[0].Error())
