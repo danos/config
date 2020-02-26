@@ -24,7 +24,6 @@ import (
 	"github.com/danos/utils/exec"
 	"github.com/danos/vci/conf"
 	"github.com/danos/yang/compile"
-	yang "github.com/danos/yang/schema"
 	"github.com/danos/yang/testutils/assert"
 	"github.com/danos/yangd"
 )
@@ -148,7 +147,7 @@ func getTestServiceMap(t *testing.T, yangDir string, dotCompFiles ...string,
 }
 
 func getModelSet(t *testing.T, yangDir string, dotCompFiles ...string,
-) (yang.ModelSet, error) {
+) (*modelSet, error) {
 
 	compExt := &CompilationExtensions{
 		Dispatcher: &testDispatcher{},
@@ -156,13 +155,17 @@ func getModelSet(t *testing.T, yangDir string, dotCompFiles ...string,
 			t, dotCompFiles...),
 	}
 
-	return CompileDir(
+	ms, err := CompileDir(
 		&compile.Config{
 			YangDir:      yangDir,
 			CapsLocation: "",
 			Filter:       compile.IsConfig},
 		compExt,
 	)
+	if ms == nil {
+		return nil, err
+	}
+	return ms.(*modelSet), err
 }
 
 func checkNumberOfServices(
@@ -549,9 +552,9 @@ func TestSingleDefaultComponentDetected(t *testing.T) {
 	}
 
 	expDefSvcName := "net.vyatta.test.default"
-	if ms.(*modelSet).defaultService != expDefSvcName {
+	if ms.defaultService != expDefSvcName {
 		t.Fatalf("Exp service name: %s\nAct service name: %s\n",
-			expDefSvcName, ms.(*modelSet).defaultService)
+			expDefSvcName, ms.defaultService)
 	}
 }
 
