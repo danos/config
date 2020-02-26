@@ -10,6 +10,7 @@ package schema
 
 import (
 	"bytes"
+	"fmt"
 	"strconv"
 	"strings"
 	"testing"
@@ -241,4 +242,152 @@ func (tsm *testSvcManager) Disable(name string) error         { return nil }
 // For now, assume any component is active.
 func (tsm *testSvcManager) IsActive(name string) (bool, error) {
 	return true, nil
+}
+
+// Test Dispatcher and Service objects to allow injection of customised
+// functionality.
+
+type testDispatcher struct{}
+
+type testService struct{}
+
+func (d *testDispatcher) NewService(name string) (yangd.Service, error) {
+	return &testService{}, nil
+}
+
+func (s *testService) GetRunning(path string) ([]byte, error) {
+	return nil, nil
+}
+
+func (s *testService) GetState(path string) ([]byte, error) {
+	return nil, nil
+}
+
+func (s *testService) ValidateCandidate(candidate []byte) error {
+	return nil
+}
+
+func (s *testService) SetRunning(candidate []byte) error {
+	return nil
+}
+
+func getComponentConfigs(t *testing.T, dotCompFiles ...string,
+) (configs []*conf.ServiceConfig) {
+
+	for _, file := range dotCompFiles {
+		cfg, err := conf.ParseConfiguration([]byte(file))
+		if err != nil {
+			t.Fatalf("Unexpected component config parse failure:\n  %s\n\n",
+				err.Error())
+		}
+		configs = append(configs, cfg)
+	}
+
+	return configs
+}
+
+func getTestServiceMap(t *testing.T, yangDir string, dotCompFiles ...string,
+) (map[string]*service, []string) {
+
+	compExt := &CompilationExtensions{
+		Dispatcher: &testDispatcher{},
+		ComponentConfig: getComponentConfigs(
+			t, dotCompFiles...),
+	}
+
+	ms, err := CompileDir(
+		&compile.Config{
+			YangDir:      yangDir,
+			CapsLocation: "",
+			Filter:       compile.IsConfig},
+		compExt,
+	)
+	if err != nil {
+		t.Fatalf("Unexpected compilation failure:\n  %s\n\n", err.Error())
+	}
+	return ms.(*modelSet).services, ms.(*modelSet).orderedServices
+}
+
+func getModelSet(t *testing.T, yangDir string, dotCompFiles ...string,
+) (*modelSet, error) {
+
+	compExt := &CompilationExtensions{
+		Dispatcher: &testDispatcher{},
+		ComponentConfig: getComponentConfigs(
+			t, dotCompFiles...),
+	}
+
+	ms, err := CompileDir(
+		&compile.Config{
+			YangDir:      yangDir,
+			CapsLocation: "",
+			Filter:       compile.IsConfig},
+		compExt,
+	)
+	if ms == nil {
+		return nil, err
+	}
+	return ms.(*modelSet), err
+}
+
+func checkNumberOfServices(
+	t *testing.T,
+	serviceMap map[string]*service,
+	numSvcs int) {
+
+	if len(serviceMap) != numSvcs {
+		t.Fatalf("Unexpected number of services found: exp %d, got %d\n",
+			numSvcs, len(serviceMap))
+	}
+}
+
+func checkServiceNamespaces(
+	t *testing.T,
+	serviceMap map[string]*service,
+	modelName string,
+	namespaces []string) {
+
+	service, ok := serviceMap[modelName]
+	if !ok {
+		// Only an error if there are any namespaces to check.  Otherwise
+		// this is a model for a different model set.
+		if len(namespaces) != 0 {
+			t.Fatalf("Unable to find service '%s'\n", modelName)
+		}
+		return
+	}
+
+	// First check 'owned' namespaces that will be sent to component's Set()
+	// function on commit
+	checkNamespacesInMap(t, service.modMap, modelName, namespaces)
+}
+
+// Ensure exact match for namespaces in modMap
+func checkNamespacesInMap(
+	t *testing.T,
+	modMap map[string]struct{},
+	modelName string,
+	expNamespaces []string,
+) {
+	var ns string
+	if len(expNamespaces) != len(modMap) {
+		t.Fatalf("%s: Expected %d namespaces, but found %d\n",
+			modelName, len(expNamespaces), len(modMap))
+	}
+	for _, ns = range expNamespaces {
+		if _, ok := modMap[ns]; !ok {
+			t.Fatalf("Unable to find '%s' namespace in:\n%v",
+				ns, modMap)
+			return
+		}
+	}
+}
+
+func dumpServiceMap(serviceMap map[string]*service) {
+	for svcName, svc := range serviceMap {
+		fmt.Printf("S: %s\n", svcName)
+		for ns, _ := range svc.modMap {
+			fmt.Printf("\tNS: %s\n", ns)
+		}
+	}
 }
