@@ -1,4 +1,4 @@
-// Copyright (c) 2017, 2019, AT&T Intellectual Property.
+// Copyright (c) 2017, 2019-2020, AT&T Intellectual Property.
 // All rights reserved.
 //
 // Copyright (c) 2014-2017 by Brocade Communications Systems, Inc.
@@ -206,4 +206,39 @@ func expectValidationSuccess(
 	if err != nil {
 		t.Errorf("Unexpected failure: %s\n\n", err.Error())
 	}
+}
+
+// Test Service Manager
+//
+// Used to replace the default service manager with one where we can control the
+// results, eg for the call to IsActive().
+type testSvcManager struct{}
+
+func enableTestSvcManager() svcMgrFnType {
+	oldFn := svcMgrFn
+	svcMgrFn = func() SvcManager {
+		return createTestSvcManager()
+	}
+	return oldFn
+}
+
+func disableTestSvcManager(oldFn svcMgrFnType) { svcMgrFn = oldFn }
+
+func createTestSvcManager() *testSvcManager {
+	return &testSvcManager{}
+}
+
+func (tsm *testSvcManager) Close()                            { return }
+func (tsm *testSvcManager) Start(name string) error           { return nil }
+func (tsm *testSvcManager) Reload(name string) error          { return nil }
+func (tsm *testSvcManager) ReloadOrRestart(name string) error { return nil }
+func (tsm *testSvcManager) Restart(name string) error         { return nil }
+func (tsm *testSvcManager) ReloadServices() error             { return nil }
+func (tsm *testSvcManager) Stop(name string) error            { return nil }
+func (tsm *testSvcManager) Enable(name string) error          { return nil }
+func (tsm *testSvcManager) Disable(name string) error         { return nil }
+
+// For now, assume any component is active.
+func (tsm *testSvcManager) IsActive(name string) (bool, error) {
+	return true, nil
 }

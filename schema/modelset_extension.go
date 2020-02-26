@@ -216,6 +216,31 @@ func (c *CompilationExtensions) ExtendModelSet(
 		err
 }
 
+type SvcManager interface {
+	Close()
+	Start(name string) error
+	Reload(name string) error
+	ReloadOrRestart(name string) error
+	Restart(name string) error
+	ReloadServices() error
+	Stop(name string) error
+	Enable(name string) error
+	Disable(name string) error
+	IsActive(name string) (bool, error)
+}
+
+// Allows for default service manager to be replaced for testing.  Not as clean
+// as full dependency injection solution, but sufficient for now.
+type svcMgrFnType func() SvcManager
+
+var svcMgrFn svcMgrFnType = func() SvcManager {
+	return services.NewManager()
+}
+
+func createServiceManager() SvcManager {
+	return svcMgrFn()
+}
+
 // ListActiveModels returns the topologically sorted list of models
 // that are active in the provided config.  If they have config but are
 // not running, they will not be returned.
@@ -225,7 +250,7 @@ func (m *modelSet) ListActiveModels(config datanode.DataNode) []string {
 
 	out := make([]string, 0)
 
-	svcMgr := services.NewManager()
+	svcMgr := createServiceManager()
 	defer svcMgr.Close()
 
 	for _, modelName := range m.orderedServices {
@@ -251,7 +276,7 @@ func (m *modelSet) ListActiveOrConfiguredModels(
 
 	out := make([]string, 0)
 
-	svcMgr := services.NewManager()
+	svcMgr := createServiceManager()
 	defer svcMgr.Close()
 
 	for _, modelName := range m.orderedServices {
