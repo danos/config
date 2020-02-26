@@ -17,6 +17,7 @@ import (
 
 	"github.com/danos/vci/conf"
 	"github.com/danos/yang/compile"
+	"github.com/danos/yang/data/encoding"
 	"github.com/danos/yang/parse"
 	"github.com/danos/yang/xpath"
 	"github.com/danos/yang/xpath/xutils"
@@ -249,10 +250,12 @@ func (tsm *testSvcManager) IsActive(name string) (bool, error) {
 
 type testDispatcher struct{}
 
-type testService struct{}
+type testService struct {
+	name string
+}
 
 func (d *testDispatcher) NewService(name string) (yangd.Service, error) {
-	return &testService{}, nil
+	return &testService{name: name}, nil
 }
 
 func (s *testService) GetRunning(path string) ([]byte, error) {
@@ -264,11 +267,57 @@ func (s *testService) GetState(path string) ([]byte, error) {
 }
 
 func (s *testService) ValidateCandidate(candidate []byte) error {
+	lastValidateCandidateCfg.candidateCfg = candidate
+	lastValidateCandidateCfg.svcName = s.name
 	return nil
 }
 
 func (s *testService) SetRunning(candidate []byte) error {
+	lastSetCandidateCfg.candidateCfg = candidate
+	lastSetCandidateCfg.svcName = s.name
 	return nil
+}
+
+type testCfg struct {
+	svcName      string
+	candidateCfg []byte
+}
+
+var lastValidateCandidateCfg = &testCfg{}
+var lastSetCandidateCfg = &testCfg{}
+
+// TODO - make method of testCfg object.
+
+func checkLastCandidateConfig(
+	t *testing.T,
+	name string,
+	lastCfg *testCfg,
+	expCfgSnippets []string,
+	unexpCfgSnippets []string,
+) {
+	if name != lastCfg.svcName {
+		t.Fatalf("Last candidate config was for %s; exp %s\n",
+			lastCfg.svcName, name)
+		return
+	}
+
+	actualCfg := string(lastCfg.candidateCfg)
+
+	for _, cfg := range expCfgSnippets {
+		cfg := stripWS(cfg)
+		if !strings.Contains(actualCfg, cfg) {
+			t.Fatalf("Last candidate cfg was:\n%s\nExp to contain:\n%s\n",
+				actualCfg, cfg)
+		}
+	}
+
+	for _, cfg := range unexpCfgSnippets {
+		cfg := stripWS(cfg)
+		if strings.Contains(actualCfg, cfg) {
+			t.Fatalf("Last candidate cfg was:\n%s\nShould not contain:\n%s\n",
+				actualCfg, cfg)
+		}
+	}
 }
 
 func getComponentConfigs(t *testing.T, dotCompFiles ...string,
@@ -397,4 +446,71 @@ func dumpServiceMap(serviceMap map[string]*service) {
 			fmt.Printf("\tNS: %s\n", ns)
 		}
 	}
+}
+
+func checkServiceValidation(
+	t *testing.T,
+	extMs *modelSet,
+	svcName string,
+	inputCfgInJson []byte,
+	expCfgSnippets []string,
+	unexpCfgSnippets []string,
+) {
+	svcFn := enableTestSvcManager()
+	defer disableTestSvcManager(svcFn)
+
+	svc := extMs.services[svcName]
+	if svc == nil {
+		t.Fatalf("Unable to find service %s\n", svcName)
+		return
+	}
+
+	dn, err := encoding.UnmarshalJSON(extMs, inputCfgInJson)
+	if err != nil {
+		t.Fatalf("Encoding error: %s\n", err)
+		return
+	}
+
+	extMs.ServiceValidation(dn, nil /* logFn */)
+
+	checkLastCandidateConfig(t, svcName, lastValidateCandidateCfg,
+		expCfgSnippets, unexpCfgSnippets)
+
+}
+
+func checkSetRunning(
+	t *testing.T,
+	extMs *modelSet,
+	svcName string,
+	svcNs string,
+	inputCfgInJson []byte,
+	expCfgSnippets []string,
+	unexpCfgSnippets []string,
+) {
+	svcFn := enableTestSvcManager()
+	defer disableTestSvcManager(svcFn)
+
+	svc := extMs.services[svcName]
+	if svc == nil {
+		t.Fatalf("Unable to find service %s\n", svcName)
+		return
+	}
+
+	dn, err := encoding.UnmarshalJSON(extMs, inputCfgInJson)
+	if err != nil {
+		t.Fatalf("Encoding error: %s\n", err)
+		return
+	}
+
+	changedNSMap := make(map[string]bool)
+	changedNSMap[svcNs] = true
+	extMs.ServiceSetRunning(dn, &changedNSMap)
+
+	checkLastCandidateConfig(t, svcName, lastSetCandidateCfg,
+		expCfgSnippets, unexpCfgSnippets)
+}
+
+func stripWS(pretty string) string {
+	r := strings.NewReplacer(" ", "", "\n", "", "\t", "")
+	return r.Replace(pretty)
 }

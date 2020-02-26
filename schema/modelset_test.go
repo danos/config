@@ -434,6 +434,13 @@ container reqForCheckCont {
 	}
 }`
 
+const notRequiredForCheckSchemaSnippet = `
+container notReqForCheckCont {
+	leaf notReqForCheckLeaf {
+		type uint16;
+	}
+}`
+
 func TestImportsRequiredForCheck(t *testing.T) {
 	schemas := []*testutils.TestSchema{
 		testutils.NewTestSchema("vyatta-test-check-v1", "check1").
@@ -459,4 +466,61 @@ func TestImportsRequiredForCheck(t *testing.T) {
 		"net.vyatta.vci.test.test-check",
 		[]string{NsPfx + "vyatta-test-check-v1"},
 		[]string{NsPfx + "vyatta-required-for-check-v1"})
+}
+
+func TestValidateCandidate(t *testing.T) {
+
+	schemas := []*testutils.TestSchema{
+		testutils.NewTestSchema("vyatta-test-check-v1", "check1").
+			AddSchemaSnippet(checkSchemaSnippet),
+		testutils.NewTestSchema("vyatta-required-for-check-v1", "required1").
+			AddSchemaSnippet(requiredForCheckSchemaSnippet),
+		testutils.NewTestSchema(
+			"vyatta-not-required-for-check-v1", "notrequired1").
+			AddSchemaSnippet(notRequiredForCheckSchemaSnippet),
+	}
+
+	tmpYangDir := createYangDir(t, "checkTest", schemas)
+	defer os.RemoveAll(tmpYangDir)
+
+	vciComp := conf.CreateTestDotComponentFile("test-check").
+		AddModelWithCheckImport("net.vyatta.vci.test.test-check",
+			[]string{"vyatta-test-check-v1"},
+			[]string{conf.BaseModelSet},
+			[]string{"vyatta-required-for-check-v1"})
+
+	extMs, _ := getModelSet(t, tmpYangDir, vciComp.String())
+
+	inputCfgAsJson := []byte(`
+		{
+			"checkCont":{
+				"checkLeaf":"foo"
+			},
+			"reqForCheckCont":{
+				"reqForCheckLeaf": 66
+			},
+			"notReqForCheckCont":{
+				"notReqForCheckLeaf": 99
+			}
+		}`)
+
+	expCheckCfgSnippets := []string{
+		`"vyatta-test-check-v1:checkCont":{"checkLeaf":"foo"}`,
+		`"vyatta-required-for-check-v1:reqForCheckCont":
+				{"reqForCheckLeaf": 66}`,
+	}
+	unexpCheckCfgSnippets := []string{"notReqForCheck"}
+
+	checkServiceValidation(t, extMs, "net.vyatta.vci.test.test-check",
+		inputCfgAsJson, expCheckCfgSnippets, unexpCheckCfgSnippets)
+
+	expSetCfgSnippets := []string{
+		`"vyatta-test-check-v1:checkCont":{"checkLeaf":"foo"}`,
+	}
+	unexpSetCfgSnippets := []string{
+		"reqForCheckCont", "notReqForCheck"}
+
+	checkSetRunning(t, extMs, "net.vyatta.vci.test.test-check",
+		NsPfx+"vyatta-test-check-v1",
+		inputCfgAsJson, expSetCfgSnippets, unexpSetCfgSnippets)
 }
