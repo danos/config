@@ -1,4 +1,4 @@
-// Copyright (c) 2019, AT&T Intellectual Property. All rights reserved.
+// Copyright (c) 2019-2020, AT&T Intellectual Property. All rights reserved.
 //
 // Copyright (c) 2016-2017 by Brocade Communications Systems, Inc.
 // All rights reserved.
@@ -26,14 +26,20 @@ func ValidateSchemaWithLog(
 	sn Node,
 	dn datanode.DataNode,
 	debug bool,
-	logFn commitTimeLogFn,
+	mustThreshold int,
+	logFn func(string, time.Time),
 ) (
 	[]*exec.Output,
 	[]error,
 	bool,
 ) {
 	yangValStart := time.Now()
-	outs, errs, ok := yang.ValidateSchema(sn, dn, debug)
+
+	outs, errs, ok := yang.ValidateSchemaWithLog(
+		sn, dn,
+		yang.ValidationDebug(debug),
+		yang.MustLogThreshold(mustThreshold))
+
 	if !ok {
 		return outs, errs, ok
 	}
@@ -55,5 +61,5 @@ func ValidateSchemaWithLog(
 func ValidateSchema(sn Node, dn datanode.DataNode, debug bool) (
 	[]*exec.Output, []error, bool) {
 
-	return ValidateSchemaWithLog(sn, dn, debug, nil)
+	return ValidateSchemaWithLog(sn, dn, debug, 0, nil)
 }

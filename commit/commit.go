@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2019, AT&T Intellectual Copyright. All rights reserved.
+// Copyright (c) 2018-2020, AT&T Intellectual Copyright. All rights reserved.
 //
 // Copyright (c) 2014-2017 by Brocade Communications Systems, Inc.
 // All rights reserved.
@@ -38,6 +38,7 @@ type Context interface {
 	LogCommitTime(string, time.Time)
 	LogAudit(string)
 	Debug() bool
+	MustDebugThreshold() int
 	Sid() string
 	Uid() uint32
 	Running() *data.Node
