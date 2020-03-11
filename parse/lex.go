@@ -293,7 +293,7 @@ func lexEOSorSep(l *lexer) stateFn {
 }
 
 func lexEOS(l *lexer) stateFn {
-	for isEOS(l.peek()) {
+	for isEOS(l.peek()) && l.peek() != eof {
 		l.next()
 	}
 	l.emit(itemEOS)
@@ -333,7 +333,7 @@ func isEOSorSep(r rune) bool {
 }
 
 func isEOS(r rune) bool {
-	return isEndOfLine(r) || r == ';'
+	return isEndOfLine(r) || r == ';' || r == eof
 }
 
 func isTerminator(r rune) bool {

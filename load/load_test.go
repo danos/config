@@ -53,6 +53,11 @@ leaf testint {
 		range 1..64;
 	}
 	must "../testbool = true()";
+}
+container testcont {
+	leaf testleaf {
+		type string;
+	}
 }`
 
 func loadTestConfig(t *testing.T, schema, config string) []error {
@@ -169,4 +174,22 @@ func TestLoadMultipleWarnings(t *testing.T) {
 			RawErrorStrings()...)
 
 	checkWarnings(t, warnings, expIntErrors, expStringErrors)
+}
+
+var testNoTrailingNewlineConfigs = []string{
+	"testint 33",
+	"teststring stuff",
+	"testcont {\ntestleaf aValue\n}",
+}
+
+func TestLoadNoTrailingNewline(t *testing.T) {
+
+	for _, testConfig := range testNoTrailingNewlineConfigs {
+		warnings := loadTestConfig(t, mergeOrLoadSchema, testConfig)
+
+		if warnings != nil {
+			t.Fatalf("Unexpected warning(s) for '%s': %v\n",
+				testConfig, warnings)
+		}
+	}
 }
