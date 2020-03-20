@@ -1,4 +1,4 @@
-// Copyright (c) 2019, AT&T Intellectual Property. All rights reserved.
+// Copyright (c) 2019-2020, AT&T Intellectual Property. All rights reserved.
 //
 // Copyright (c) 2014 by Brocade Communications Systems, Inc.
 // All rights reserved.
@@ -261,8 +261,16 @@ func lexStmt(l *lexer) stateFn {
 
 // lexString scans a run of non-separator characters
 func lexString(l *lexer) stateFn {
-	for !isTerminator(l.peek()) {
-		l.next()
+
+Loop:
+	for {
+		switch r := l.next(); {
+		case isTerminator(r):
+			l.backup()
+			break Loop
+		case r == '\\':
+			l.next()
+		}
 	}
 	l.emit(itemString)
 	return lexEOSorSep
