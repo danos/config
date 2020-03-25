@@ -228,7 +228,7 @@ func lexStmt(l *lexer) stateFn {
 			break
 		case isSep(r):
 			return lexSep
-		case r == '"' || r == '\'':
+		case r == '"':
 			return lexQuote
 		case r == '{':
 			l.emit(itemLeftBrace)

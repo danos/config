@@ -20,34 +20,30 @@ var inputStringsWithQuotesAndOtherEscapableChars = []string{
 	`f04'b'ar`,
 	`f07\"b\"ar`,
 	`"f08'bar"`,
-	`'f09"bar'`,
 	`"f10\'bar"`,
 	`'f11\"bar'`,
 	`"f12'b'ar"`,
-	`'f13"b"ar'`,
 	`"f14\'b\'ar"`,
 	`'f15\"b\"ar'`,
 	`"f27\"bar"`,
 	`'f28'b'ar'`,
 	`"f4 0'bar"`,
-	`'f4 1"bar'`,
 	`"f4 2\'bar"`,
 	`'f4 3\"bar'`,
 	`"f4 4'b'ar"`,
-	`'f4 5"b"ar'`,
 	`"f4 6\'b\'ar"`,
 	`'f4 7\"b\"ar'`,
 	`"f5 9\"bar"`,
 	`'f6 0'b'ar'`,
 	`"f6 3\"b\"ar"`,
 	`"f76'b 'ar"`,
-	`'f77"b "ar'`,
 	`"f78\'b \'ar"`,
 	`'f79\"b \"ar'`,
 	`"f95\"b \"ar"`,
+	`'f129bar`,
 }
 
-func TestParser(t *testing.T) {
+func TestParserEscaping(t *testing.T) {
 	for _, input := range inputStringsWithQuotesAndOtherEscapableChars {
 		_, err := parse.Parse("filename", input)
 		if err != nil {
