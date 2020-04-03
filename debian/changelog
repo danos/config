@@ -1,3 +1,30 @@
+golang-github-danos-config (1.6) unstable; urgency=medium
+
+  [ Paul Carson ]
+  * Complete implementation of Yang identityref
+  * Test identityref help text processing
+  * Implement identityref XML and json processing (Closes: VRVDR-6226)
+
+  [ William Ivory ]
+  * Add createServiceManager wrapper
+  * getModelSet now returns extended modelSet
+  * Refactor tests for service/component namespace
+  * Refactor checkServiceNamespaces
+  * Switch version of testutils; remove local runTestAndCaptureStdout
+  * Move test helper functions from modelset_test to schema_test
+  * Update copyrights (Closes: VRVDR-50209)
+  * Allow tests to pass in checkOnly namespaces
+  * Generate namespace maps for both check() and set()
+  * Tests and helper functions for ValidateCandidate and SetRunning
+    (Closes: VRVDR-50014)
+  * Fix parsing of configs with no trailing newline. (Closes: VRVDR-29238)
+  * Use yangValDebugContext to allow must statement debug
+  * Fix string parsing
+  * Add support for parsing leading single quote inside double quotes
+    (Closes: VRVDR-44479)
+
+ -- William Ivory <william.ivory@intl.att.com>  Fri, 03 Apr 2020 11:37:33 +0100
+
 golang-github-danos-config (1.5) unstable; urgency=medium
 
   * DANOS Import Master
