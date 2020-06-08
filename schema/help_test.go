@@ -1,4 +1,4 @@
-// Copyright (c) 2017,2019, AT&T Intellectual Property.
+// Copyright (c) 2017,2019-2021, AT&T Intellectual Property.
 // All rights reserved.
 //
 // Copyright (c) 2016-2017 by Brocade Communications Systems, Inc.
@@ -489,4 +489,73 @@ module test-remote {
 	// Ensure root identities are not included
 	assertHelpMapDoesNotContain(t, helpMap, "video-games")
 	assertHelpMapDoesNotContain(t, helpMap, "board-games")
+}
+
+func TestChoiceHelp(t *testing.T) {
+	schema_text := bytes.NewBufferString(fmt.Sprintf(
+		schemaTemplate,
+		`container con-c1 {
+			choice ch-foobarbaz {
+				mandatory true;
+				case ca-foo {
+					leaf l-foo {
+						configd:help "foo help";
+						type string;
+					}
+
+					choice one {
+						case one-a {
+							leaf one-a {
+								type string;
+								configd:help "one-a help";
+							}
+						}
+
+						case one-b {
+							leaf one-b {
+								type string;
+								configd:help "one-b help";
+							}
+						}
+
+						leaf one-c {
+							type string;
+							configd:help "one-c help";
+						}
+					}
+				}
+				case ca-bar {
+					leaf l-bar {
+						configd:help "bar help";
+						type string;
+					}
+				}
+				leaf l-baz {
+					configd:help "baz help";
+					type string;
+				}
+			}
+
+			leaf l-fooz {
+				configd:help "fooz help";
+				type string;
+			}
+		}
+         `))
+
+	ms, err := GetConfigSchema(schema_text.Bytes())
+	if err != nil {
+		t.Fatalf("Unexpected compilation failure:\n  %s\n\n", err.Error())
+	}
+
+	node := ms.Child("con-c1")
+	helpMap := node.(ExtendedNode).HelpMap()
+
+	assertHelpMapContains(t, helpMap, "l-foo", "foo help")
+	assertHelpMapContains(t, helpMap, "l-bar", "bar help")
+	assertHelpMapContains(t, helpMap, "l-baz", "baz help")
+	assertHelpMapContains(t, helpMap, "l-fooz", "fooz help")
+	assertHelpMapContains(t, helpMap, "one-a", "one-a help")
+	assertHelpMapContains(t, helpMap, "one-b", "one-b help")
+	assertHelpMapContains(t, helpMap, "one-c", "one-c help")
 }

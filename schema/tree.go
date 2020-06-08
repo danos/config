@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2020, AT&T Intellectual Property. All rights reserved.
+// Copyright (c) 2019-2021, AT&T Intellectual Property. All rights reserved.
 //
 // Copyright (c) 2016-2017 by Brocade Communications Systems, Inc.
 // All rights reserved.
@@ -64,6 +64,14 @@ func (n *listEntry) SchemaChild(name string) Node {
 }
 
 func (n *leaf) SchemaChild(name string) Node {
+	return schemaChild(n, name)
+}
+
+func (n *choice) SchemaChild(name string) Node {
+	return schemaChild(n, name)
+}
+
+func (n *ycase) SchemaChild(name string) Node {
 	return schemaChild(n, name)
 }
 
@@ -328,6 +336,61 @@ func (n *leaf) DefaultChild(name string) yang.Node {
 type Choice interface {
 	yang.Choice
 	ExtendedNode
+}
+
+type choice struct {
+	yang.Choice
+	*extensions
+	*state
+}
+
+// Compile time check that the concrete type meets the interface
+var _ Choice = (*choice)(nil)
+
+func (*CompilationExtensions) ExtendChoice(
+	p parse.Node, y yang.Choice,
+) (yang.Choice, error) {
+
+	ext := newExtend(parseExtensions(p))
+	return &choice{y, ext, newState(y, ext)}, nil
+}
+
+func (n *choice) Child(name string) yang.Node {
+	return n.Choice.Child(name)
+}
+
+func (n *choice) DefaultChild(name string) yang.Node {
+	return n.Choice.DefaultChild(name)
+}
+
+type Case interface {
+	yang.Case
+	ExtendedNode
+}
+
+type ycase struct {
+	yang.Case
+	*extensions
+	*state
+}
+
+// Compile time check that the concrete type meets the interface
+var _ Case = (*ycase)(nil)
+
+func (*CompilationExtensions) ExtendCase(
+	p parse.Node, y yang.Case,
+) (yang.Case, error) {
+
+	ext := newExtend(parseExtensions(p))
+	return &ycase{y, ext, newState(y, ext)}, nil
+}
+
+func (n *ycase) Child(name string) yang.Node {
+	return n.Case.Child(name)
+}
+
+func (n *ycase) DefaultChild(name string) yang.Node {
+	return n.Case.DefaultChild(name)
 }
 
 type LeafList interface {

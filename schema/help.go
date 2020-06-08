@@ -1,4 +1,4 @@
-// Copyright (c) 2017,2019, AT&T Intellectual Property.
+// Copyright (c) 2017,2019-2021, AT&T Intellectual Property.
 // All rights reserved.
 //
 // Copyright (c) 2016 by Brocade Communications Systems, Inc.
@@ -135,6 +135,9 @@ func getPatternHelp(n yang.Node) map[string]string {
 			}
 		}
 		return tp
+	case Choice, Case:
+		return getHelpMap(n)
+
 	default:
 		return nil
 	}
@@ -248,6 +251,14 @@ func (n *leaf) HelpMap() map[string]string {
 
 func (n *leafList) HelpMap() map[string]string {
 	return getPatternHelpMap(n)
+}
+
+func (n *choice) HelpMap() map[string]string {
+	return getHelpMap(n)
+}
+
+func (n *ycase) HelpMap() map[string]string {
+	return getHelpMap(n)
 }
 
 func (y *leafValue) HelpMap() map[string]string {

@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2019, AT&T Intellectual Property.
+// Copyright (c) 2017-2021, AT&T Intellectual Property.
 // All rights reserved.
 //
 // Copyright (c) 2015-2017 by Brocade Communications Systems, Inc.
@@ -218,8 +218,13 @@ func (n *node) buildOpaqueDefaultChild(name string,
 	over, under *data.Node,
 	overSchema schema.Node) Node {
 	ch := n.schema.DefaultChild(name)
+	chcs := n.schema.Choices()
+
 	switch {
 	case ch == nil:
+		//no default child, just return the deleted child representation
+		return NewNode(over, under, overSchema, n.specialized, getFlags(over))
+	case len(chcs) > 0:
 		//no default child, just return the deleted child representation
 		return NewNode(over, under, overSchema, n.specialized, getFlags(over))
 	default:
@@ -235,10 +240,114 @@ func (n *node) buildOpaqueDefaultChild(name string,
 	}
 }
 
+func isActiveDefaultCase(n *node, nd yang.Node, name, defCase string) bool {
+	for _, cd := range nd.Choices() {
+		ch := cd.Child(name)
+		if ch == nil {
+			continue
+		}
+		if defCase == "" {
+			hcfg := hasCfg(n, cd)
+			if !hcfg {
+				return false
+			}
+			return isActiveDefault(n, cd, name, false)
+		} else if defCase != cd.Name() {
+			return false
+		}
+
+		for _, cd := range nd.Choices() {
+			hcfg := hasCfg(n, cd)
+			if hcfg {
+				return false
+			}
+		}
+		return isActiveDefault(n, cd, name, cd.Name() == defCase)
+	}
+	return false
+}
+
+func hasCfg(n *node, ch yang.Node) bool {
+	och := n.overlay.Children()
+	uch := n.underlay.Children()
+	for _, v := range och {
+		if !v.Deleted() && ch.Child(v.Name()) != nil {
+			return true
+		}
+	}
+	for _, v := range uch {
+		if !v.Deleted() && ch.Child(v.Name()) != nil {
+			nd := n.Child(v.Name())
+			if nd != nil && nd.deleted() {
+				continue
+			}
+			return true
+		}
+	}
+	return false
+}
+
+func isActiveDefault(n *node, nd yang.Node, name string, defCase bool) bool {
+	for _, cd := range nd.Choices() {
+		switch choice := cd.(type) {
+		case schema.Choice:
+			if cd.Child(name) != nil {
+				cfg := hasCfg(n, cd)
+				switch {
+				case cfg == true:
+					return isActiveDefaultCase(n, cd, name, "")
+				case cd.HasDefault() == true:
+					return isActiveDefaultCase(n, cd, name, choice.DefaultCase())
+				default:
+				}
+			}
+		default:
+			if cd.Name() != name {
+
+			} else {
+				if defCase {
+					return true
+				}
+				for _, v := range n.overlay.Children() {
+					if nd.Child(v.Name()) != nil {
+						return !v.Deleted()
+					}
+				}
+				for _, v := range n.underlay.Children() {
+					if !v.Deleted() && nd.Child(v.Name()) != nil {
+						return !v.Deleted()
+					}
+				}
+			}
+		}
+	}
+	return false
+}
+
+func isAChoice(n *node, name string) bool {
+	for _, cd := range n.schema.Choices() {
+		switch cd.(type) {
+		case schema.Choice, schema.Case:
+			if cd.Child(name) != nil {
+				return true
+			}
+		default:
+			if cd.Name() == name {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func (n *node) buildDefaultChild(name string) Node {
 	ch := n.schema.DefaultChild(name)
+	def := isActiveDefault(n, n.schema, name, false)
 	switch {
 	case ch == nil:
+		return nil
+
+	case isAChoice(n, name) && !def:
 		return nil
 	default:
 		sch := ch.(schema.Node)
@@ -606,6 +715,43 @@ func (n *node) exists(path, curPath []string) error {
 
 func (n *node) setHook() {}
 
+func choiceNodesToRemove(chcs []yang.Node, name string, rslt []string) []string {
+
+	for _, choice := range chcs {
+		switch choice.(type) {
+		case schema.Choice:
+			if choice.Child(name) != nil {
+				rslt = caseNodesToRemove(choice.Choices(), name, rslt)
+			}
+		}
+	}
+
+	return rslt
+}
+func caseNodesToRemove(chcs []yang.Node, name string, rslt []string) []string {
+
+	for _, choice := range chcs {
+		switch choice.(type) {
+
+		case schema.Case:
+			if choice.Child(name) != nil {
+				rslt = choiceNodesToRemove(choice.Choices(), name, rslt)
+			} else {
+				for _, ch := range choice.Children() {
+					rslt = append(rslt, ch.Name())
+				}
+			}
+
+		default:
+			if choice.Name() != name {
+				rslt = append(rslt, choice.Name())
+			}
+		}
+	}
+
+	return rslt
+}
+
 func (n *node) set(path, curPath []string) error {
 	return n.walkPath(
 		func(ch Node, hd string, tl []string) error {
@@ -617,9 +763,27 @@ func (n *node) set(path, curPath []string) error {
 			//if ch wasn't found (this case) then the
 			//passed in child is nil, so we need to do
 			//a lookup after adding the new child
-			ch = n.addChild(data.New(hd))
-			ch.setHook()
-			return ch.set(tl, append(curPath, hd))
+			rslt := make([]string, 0)
+			if n.schema.Choices() != nil {
+				rslt = choiceNodesToRemove(n.schema.Choices(), hd, rslt)
+			}
+			if n.schema.Status() != yang.Obsolete {
+				ch = n.addChild(data.New(hd))
+				ch.setHook()
+				if err := ch.set(tl, append(curPath, hd)); err != nil {
+					return err
+				}
+			}
+			for _, rn := range rslt {
+				chn := n.Child(rn)
+				if chn != nil {
+					err := callInternalWalker(chn.deleteEverythingUnder, append(curPath, rn))
+					if err != nil {
+						return err
+					}
+				}
+			}
+			return nil
 		},
 		func(_ Node) error {
 			return nil
