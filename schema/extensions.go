@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2019, AT&T Intellectual Property.
+// Copyright (c) 2017-2020, AT&T Intellectual Property.
 // All rights reserved.
 //
 // Copyright (c) 2016-2017 by Brocade Communications Systems, Inc.
@@ -41,6 +41,8 @@ type ConfigdExt struct {
 	OpdPatternHelp []string
 }
 
+var emptyExt = &ConfigdExt{}
+
 func elementOf(e string, list []string) bool {
 	for _, le := range list {
 		if e == le {
@@ -51,15 +53,36 @@ func elementOf(e string, list []string) bool {
 }
 
 func mergeStringList(base, new []string) []string {
-	out := make([]string, len(base))
-	copy(out, base)
-	for _, n := range new {
-		if elementOf(n, base) {
-			continue
+	switch {
+	case len(base) == 0:
+		if len(new) == 0 {
+			return nil
 		}
-		out = append(out, n)
+		out := make([]string, len(new))
+		copy(out, new)
+		return out
+	case len(new) == 0:
+		out := make([]string, len(base))
+		copy(out, base)
+		return out
+	default:
+		sz := len(base)
+		for _, n := range new {
+			if elementOf(n, base) {
+				continue
+			}
+			sz++
+		}
+		out := make([]string, len(base), sz)
+		copy(out, base)
+		for _, n := range new {
+			if elementOf(n, base) {
+				continue
+			}
+			out = append(out, n)
+		}
+		return out
 	}
-	return out
 }
 
 func (ext *ConfigdExt) getHelp() string {
@@ -90,9 +113,13 @@ func (ext *ConfigdExt) GetTypeHelp() string {
 	return ext.getHelp()
 }
 
-func (ext *ConfigdExt) Override(in *ConfigdExt) {
-	if in == nil {
-		return
+func (ext *ConfigdExt) Override(in *ConfigdExt) *ConfigdExt {
+	if in == nil || in == emptyExt {
+		return ext
+	}
+
+	if ext == emptyExt {
+		ext = &ConfigdExt{}
 	}
 	if in.Help != "" {
 		ext.Help = in.Help
@@ -157,12 +184,16 @@ func (ext *ConfigdExt) Override(in *ConfigdExt) {
 	if in.OpdAllowed != "" {
 		ext.OpdAllowed = in.OpdAllowed
 	}
+	return ext
 }
 
 //Types require merging of base data into new type
-func (ext *ConfigdExt) Merge(in *ConfigdExt) {
-	if in == nil {
-		return
+func (ext *ConfigdExt) Merge(in *ConfigdExt) *ConfigdExt {
+	if in == nil || in == emptyExt {
+		return ext
+	}
+	if ext == emptyExt {
+		ext = &ConfigdExt{}
 	}
 	if in.Help != "" {
 		ext.Help = in.Help
@@ -205,16 +236,22 @@ func (ext *ConfigdExt) Merge(in *ConfigdExt) {
 		ext.OpdAllowed = in.OpdAllowed
 	}
 	ext.OpdPatternHelp = mergeStringList(ext.OpdPatternHelp, in.OpdPatternHelp)
-
+	return ext
 }
 
 func copyStringList(in []string) []string {
+	if len(in) == 0 {
+		return nil
+	}
 	out := make([]string, len(in))
 	copy(out, in)
 	return out
 }
 
 func (ext *ConfigdExt) Copy() *ConfigdExt {
+	if ext == emptyExt {
+		return ext
+	}
 	return &ConfigdExt{
 		Help:           ext.Help,
 		Validate:       copyStringList(ext.Validate),
@@ -301,15 +338,32 @@ func extByTypeOne(n parse.Node, typ parse.NodeType) string {
 }
 
 func extByTypeMany(n parse.Node, typ parse.NodeType) []string {
-	exts := []string{}
-
-	for _, v := range n.ChildrenByType(typ) {
-		exts = append(exts, v.ArgString())
+	children := n.ChildrenByType(typ)
+	if len(children) == 0 {
+		return nil
+	}
+	exts := make([]string, len(children))
+	for i, v := range children {
+		exts[i] = v.ArgString()
 	}
 	return exts
 }
 
+func numExtensions(p parse.Node) int {
+	var count int
+	for _, ch := range p.Children() {
+		ty := ch.Type()
+		if ty.IsConfigdNode() || ty.IsOpdExtension() {
+			count++
+		}
+	}
+	return count
+}
+
 func parseExtensions(p parse.Node) *ConfigdExt {
+	if numExtensions(p) == 0 {
+		return emptyExt
+	}
 	return &ConfigdExt{
 		Help:           extByTypeOne(p, parse.NodeConfigdHelp),
 		Validate:       extByTypeMany(p, parse.NodeConfigdValidate),
@@ -366,9 +420,11 @@ func extensionsContainAny(ext *ConfigdExt, match ...string) bool {
 	return false
 }
 
+var emptyExtend = &extensions{emptyExt}
+
 func newExtend(ext *ConfigdExt) *extensions {
-	if ext == nil {
-		ext = &ConfigdExt{}
+	if ext == nil || ext == emptyExt {
+		return emptyExtend
 	}
 	return &extensions{ext}
 }

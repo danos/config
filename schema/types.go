@@ -1,4 +1,4 @@
-// Copyright (c) 2019, AT&T Intellectual Property. All rights reserved.
+// Copyright (c) 2019-2020, AT&T Intellectual Property. All rights reserved.
 //
 // Copyright (c) 2016-2017 by Brocade Communications Systems, Inc.
 // All rights reserved.
@@ -493,7 +493,7 @@ func mergeExtensions(a, b *ConfigdExt) *ConfigdExt {
 	}
 
 	ext := a.Copy()
-	ext.Merge(b)
+	ext = ext.Merge(b)
 	return (ext)
 }
 
