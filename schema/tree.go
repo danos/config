@@ -1,4 +1,4 @@
-// Copyright (c) 2019, AT&T Intellectual Property. All rights reserved.
+// Copyright (c) 2019-2020, AT&T Intellectual Property. All rights reserved.
 //
 // Copyright (c) 2016-2017 by Brocade Communications Systems, Inc.
 // All rights reserved.
@@ -199,6 +199,8 @@ type list struct {
 	yang.List
 	*extensions
 	*state
+
+	entry *listEntry
 }
 
 // Compile time check that the concrete type meets the interface
@@ -240,7 +242,21 @@ func (*CompilationExtensions) ExtendList(
 	}
 
 	ext := newExtend(parseExtensions(p))
-	return &list{y, ext, newState(y, ext)}, nil
+	state := newState(y, ext)
+	l := &list{
+		List:       y,
+		extensions: ext,
+		state:      state,
+	}
+	yentry := y.Child("").(yang.ListEntry)
+	entry := &listEntry{
+		ListEntry:  yentry,
+		list:       l,
+		extensions: ext,
+		state:      newState(yentry, ext),
+	}
+	l.entry = entry
+	return l, nil
 }
 
 type ListEntry interface {
@@ -259,17 +275,7 @@ type listEntry struct {
 var _ ListEntry = (*listEntry)(nil)
 
 func (n *list) Child(name string) yang.Node {
-	y := n.List.Child(name)
-	if y == nil {
-		return nil
-	}
-	ext := newExtend(n.extensions.ext)
-	return &listEntry{
-		y.(yang.ListEntry),
-		n,
-		ext,
-		newState(y, ext),
-	}
+	return n.entry
 }
 
 func isElemOf(list []string, elem string) bool {
