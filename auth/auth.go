@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2019, AT&T Intellectual Property Inc.
+// Copyright (c) 2018-2020, AT&T Intellectual Property Inc.
 // All rights reserved.
 //
 // Copyright (c) 2014-2015, 2017 by Brocade Communications Systems, Inc.
@@ -246,6 +246,11 @@ type Auth struct {
 	env           AuthEnv
 }
 
+type TaskAccounter interface {
+	AccountStart() error
+	AccountStop(*error) error
+}
+
 type CommandAccounter interface {
 	AccountCommand(uid uint32, groups []string, cmd []string, pathAttrs *pathutil.PathAttrs)
 }
@@ -271,6 +276,24 @@ type Auther interface {
 	AuditLog(msg string)
 	AuthorizeFn(uid uint32, groups []string, fn string) bool
 	AuthorizeRPC(uid uint32, groups []string, module, rpcName string) bool
+}
+
+type taskAccounters struct {
+	accounters []TaskAccounter
+}
+
+func (t taskAccounters) AccountStart() error {
+	for _, a := range t.accounters {
+		a.AccountStart()
+	}
+	return nil
+}
+
+func (t taskAccounters) AccountStop(err *error) error {
+	for _, a := range t.accounters {
+		a.AccountStop(err)
+	}
+	return nil
 }
 
 func NewAuthGlobal(username string, dlog, elog *log.Logger) *AuthGlobal {
