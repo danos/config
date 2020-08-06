@@ -252,6 +252,7 @@ type TaskAccounter interface {
 }
 
 type CommandAccounter interface {
+	NewTaskAccounter(uid uint32, groups []string, cmd []string, pathAttrs *pathutil.PathAttrs) TaskAccounter
 	AccountCommand(uid uint32, groups []string, cmd []string, pathAttrs *pathutil.PathAttrs)
 }
 
@@ -432,6 +433,19 @@ func (a *Auth) Log(uid uint32, rule *AuthRule, result bool) {
 		a.authGlobal.auditer.LogUserConfig(
 			fmt.Sprintf("uid=%d matched rule: %s", uid, rule), result)
 	}
+}
+
+func (a *Auth) NewTaskAccounter(
+	uid uint32, groups []string, cmd []string, pathAttrs *pathutil.PathAttrs,
+) TaskAccounter {
+	t := taskAccounters{}
+	t.accounters = make([]TaskAccounter, 0)
+	for _, cmdAcct := range a.cmdAccounters {
+		if acct := cmdAcct.NewTaskAccounter(uid, groups, cmd, pathAttrs); acct != nil {
+			t.accounters = append(t.accounters, acct)
+		}
+	}
+	return t
 }
 
 func (a *Auth) AccountCommand(uid uint32, groups []string, cmd []string, pathAttrs *pathutil.PathAttrs) {
