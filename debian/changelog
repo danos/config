@@ -1,3 +1,16 @@
+golang-github-danos-config (1.7) UNRELEASED; urgency=medium
+
+  [ John Southworth ]
+  * Deduplicate empty extensions structure
+  * Only allocate a single ListEntry
+
+  [ Duncan Eastoe ]
+  * aaa_auther: Migrate to aaa plugin API v2
+  * auth: Add TaskAccounter abstraction
+  * auth: Define types for TestAutherRequest
+
+ -- Duncan Eastoe <duncan.eastoe@att.com>  Thu, 06 Aug 2020 16:34:36 +0100
+
 golang-github-danos-config (1.6) unstable; urgency=medium
 
   [ Paul Carson ]

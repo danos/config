@@ -1,4 +1,4 @@
-// Copyright (c) 2019, AT&T Intellectual Property. All rights reserved.
+// Copyright (c) 2019-2020, AT&T Intellectual Property. All rights reserved.
 //
 // SPDX-License-Identifier: MPL-2.0
 
@@ -20,7 +20,7 @@ func (a *TestCommandAccounter) AccountCommand(
 	pathAttrs *pathutil.PathAttrs,
 ) {
 	// For now we just log command accounting requests for later validation
-	req := NewTestAutherCommandRequest(cmd, pathAttrs)
+	req := NewTestAutherCommandRequest(T_REQ_ACCT_STOP, cmd, pathAttrs)
 	a.cmdAcctReqs.Reqs = append(a.cmdAcctReqs.Reqs, req)
 }
 
@@ -36,7 +36,7 @@ func (a *TestCommandAuther) AuthorizeCommand(
 	pathAttrs *pathutil.PathAttrs,
 ) bool {
 	// For now we just log command authorization requests for later validation
-	req := NewTestAutherCommandRequest(cmd, pathAttrs)
+	req := NewTestAutherCommandRequest(T_REQ_AUTH, cmd, pathAttrs)
 	a.cmdReqs.Reqs = append(a.cmdReqs.Reqs, req)
 	return true
 }

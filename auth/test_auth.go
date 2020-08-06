@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2019, AT&T Intellectual Property. All rights reserved.
+// Copyright (c) 2018-2020, AT&T Intellectual Property. All rights reserved.
 //
 // Copyright (c) 2016 by Brocade Communications Systems, Inc.
 // All rights reserved.
@@ -75,22 +75,39 @@ func NewTestRule(action testAction, perm int, absPath string) testRule {
 	return testRule{action: action, perm: perm, path: ps}
 }
 
+const (
+	T_REQ_AUTH = 1 << iota
+	T_REQ_ACCT_STOP
+)
+
+type TestAutherRequestType int
+
 type TestAutherRequest struct {
+	reqType   TestAutherRequestType
 	perm      AuthPerm
 	path      string
 	pathAttrs pathutil.PathAttrs
 }
 
-func NewTestAutherRequest(perm AuthPerm, path []string, pathAttrs *pathutil.PathAttrs) TestAutherRequest {
-	return TestAutherRequest{perm, strings.Join(path, " "), *pathAttrs}
+func NewTestAutherRequest(
+	reqType TestAutherRequestType,
+	perm AuthPerm,
+	path []string,
+	pathAttrs *pathutil.PathAttrs,
+) TestAutherRequest {
+	return TestAutherRequest{reqType, perm, strings.Join(path, " "), *pathAttrs}
 }
 
-func NewTestAutherCommandRequest(cmd []string, pathAttrs *pathutil.PathAttrs) TestAutherRequest {
-	return NewTestAutherRequest(P_EXECUTE, cmd, pathAttrs)
+func NewTestAutherCommandRequest(
+	reqType TestAutherRequestType,
+	cmd []string,
+	pathAttrs *pathutil.PathAttrs,
+) TestAutherRequest {
+	return NewTestAutherRequest(reqType, P_EXECUTE, cmd, pathAttrs)
 }
 
 func TestAutherRequestEquals(a, b TestAutherRequest) bool {
-	if a.perm != b.perm || a.path != b.path {
+	if a.reqType != b.reqType || a.perm != b.perm || a.path != b.path {
 		return false
 	}
 
