@@ -78,8 +78,15 @@ func (a *AaaAuther) newTask(
 	return &aaaTask{a, t.(aaa.AAATask)}, err
 }
 
+func (a *AaaAuther) NewTaskAccounter(
+	uid uint32, groups []string, cmd []string, pathAttrs *pathutil.PathAttrs,
+) TaskAccounter {
+	t, _ := a.newTask(uid, groups, cmd, pathAttrs)
+	return t
+}
+
 func (a *AaaAuther) AccountCommand(uid uint32, groups []string, cmd []string, pathAttrs *pathutil.PathAttrs) {
-	if t, _ := a.newTask(uid, groups, cmd, pathAttrs); t != nil {
+	if t := a.NewTaskAccounter(uid, groups, cmd, pathAttrs); t != nil {
 		t.AccountStop(nil)
 	}
 }

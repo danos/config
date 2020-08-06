@@ -77,6 +77,7 @@ func NewTestRule(action testAction, perm int, absPath string) testRule {
 
 const (
 	T_REQ_AUTH = 1 << iota
+	T_REQ_ACCT_START
 	T_REQ_ACCT_STOP
 )
 

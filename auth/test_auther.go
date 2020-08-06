@@ -13,15 +13,41 @@ type TestCommandAccounter struct {
 	cmdAcctReqs TestAutherRequests
 }
 
+type testTaskAccounter struct {
+	testAccounter *TestCommandAccounter
+	cmd           []string
+	pathAttrs     *pathutil.PathAttrs
+}
+
+func (a testTaskAccounter) AccountStart() error {
+	a.testAccounter.cmdAcctReqs.Reqs = append(a.testAccounter.cmdAcctReqs.Reqs,
+		NewTestAutherCommandRequest(T_REQ_ACCT_START, a.cmd, a.pathAttrs))
+	return nil
+}
+
+func (a testTaskAccounter) AccountStop(_ *error) error {
+	a.testAccounter.cmdAcctReqs.Reqs = append(a.testAccounter.cmdAcctReqs.Reqs,
+		NewTestAutherCommandRequest(T_REQ_ACCT_STOP, a.cmd, a.pathAttrs))
+	return nil
+}
+
+func (a *TestCommandAccounter) NewTaskAccounter(
+	uid uint32,
+	groups []string,
+	cmd []string,
+	pathAttrs *pathutil.PathAttrs,
+) TaskAccounter {
+	// For now we just log command accounting requests for later validation
+	return testTaskAccounter{a, pathutil.Copypath(cmd), pathAttrs}
+}
+
 func (a *TestCommandAccounter) AccountCommand(
 	uid uint32,
 	groups []string,
 	cmd []string,
 	pathAttrs *pathutil.PathAttrs,
 ) {
-	// For now we just log command accounting requests for later validation
-	req := NewTestAutherCommandRequest(T_REQ_ACCT_STOP, cmd, pathAttrs)
-	a.cmdAcctReqs.Reqs = append(a.cmdAcctReqs.Reqs, req)
+	a.NewTaskAccounter(uid, groups, cmd, pathAttrs).AccountStop(nil)
 }
 
 type TestCommandAuther struct {
