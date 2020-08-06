@@ -1,4 +1,4 @@
-// Copyright (c) 2019, AT&T Intellectual Property Inc.
+// Copyright (c) 2019-2020, AT&T Intellectual Property Inc.
 // All rights reserved.
 //
 // SPDX-License-Identifier: MPL-2.0
@@ -6,10 +6,16 @@
 package auth
 
 import (
+	"errors"
+
 	"github.com/danos/aaa"
 	"github.com/danos/utils/guard"
 	"github.com/danos/utils/pathutil"
 )
+
+func authEnvToMap(env *AuthEnv) map[string]string {
+	return map[string]string{"tty": env.Tty}
+}
 
 type AaaAuther struct {
 	CommandAccounter
@@ -27,17 +33,54 @@ func NewAaaAuther(auth *Auth, proto *aaa.AAAProtocol) *AaaAuther {
 	return aaaAuther
 }
 
-func authEnvToMap(env *AuthEnv) map[string]string {
-	return map[string]string{"tty": env.Tty}
+type aaaTask struct {
+	a *AaaAuther
+	t aaa.AAATask
 }
 
-func (a *AaaAuther) AccountCommand(uid uint32, groups []string, cmd []string, pathAttrs *pathutil.PathAttrs) {
+func (a aaaTask) AccountStart() error {
 	err := guard.CatchPanicErrorOnly(func() error {
-		return a.proto.Plugin.Account("conf-mode", uid, groups, cmd, pathAttrs, authEnvToMap(&a.auth.env))
+		return a.t.AccountStart()
 	})
+	if err != nil {
+		a.a.auth.authGlobal.Elog.Printf("Start accounting error via AAA protocol %s: %s",
+			a.a.proto.Cfg.Name, err)
+	}
+	return err
+}
+
+func (a aaaTask) AccountStop(taskErr *error) error {
+	err := guard.CatchPanicErrorOnly(func() error {
+		return a.t.AccountStop(taskErr)
+	})
+	if err != nil {
+		a.a.auth.authGlobal.Elog.Printf("Stop accounting error via AAA protocol %s: %s",
+			a.a.proto.Cfg.Name, err)
+	}
+	return err
+}
+
+func (a *AaaAuther) newTask(
+	uid uint32, groups []string, cmd []string, pathAttrs *pathutil.PathAttrs,
+) (*aaaTask, error) {
+	t, err := guard.CatchPanic(func() (interface{}, error) {
+		return a.proto.Plugin.NewTask(
+			"conf-mode", uid, groups, cmd, pathAttrs, authEnvToMap(&a.auth.env))
+	})
+	if t == nil && err == nil {
+		err = errors.New("No task object")
+	}
 	if err != nil {
 		a.auth.authGlobal.Elog.Printf("Accounting error via AAA protocol %s: %s",
 			a.proto.Cfg.Name, err)
+		return nil, err
+	}
+	return &aaaTask{a, t.(aaa.AAATask)}, err
+}
+
+func (a *AaaAuther) AccountCommand(uid uint32, groups []string, cmd []string, pathAttrs *pathutil.PathAttrs) {
+	if t, _ := a.newTask(uid, groups, cmd, pathAttrs); t != nil {
+		t.AccountStop(nil)
 	}
 }
 
