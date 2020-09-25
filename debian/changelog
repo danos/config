@@ -1,4 +1,4 @@
-golang-github-danos-config (1.7) UNRELEASED; urgency=medium
+golang-github-danos-config (1.7) unstable; urgency=medium
 
   [ John Southworth ]
   * Deduplicate empty extensions structure
@@ -8,8 +8,10 @@ golang-github-danos-config (1.7) UNRELEASED; urgency=medium
   * aaa_auther: Migrate to aaa plugin API v2
   * auth: Add TaskAccounter abstraction
   * auth: Define types for TestAutherRequest
+  * auth: AAA, audit, and test TaskAccounter impls.
+  * auth: Auth implementation of TaskAccounter
 
- -- Duncan Eastoe <duncan.eastoe@att.com>  Thu, 06 Aug 2020 16:34:36 +0100
+ -- William Ivory <william.ivory@intl.att.com>  Fri, 25 Sep 2020 08:46:10 +0100
 
 golang-github-danos-config (1.6) unstable; urgency=medium
 
