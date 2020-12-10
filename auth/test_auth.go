@@ -231,6 +231,13 @@ func TestAutherAllowOrDenyAll(allow bool) *testAuther {
 	}
 }
 
+// Only needed for testing, so not added to CommandAuther, and thus type
+// assertion needed.
+func (a *testAuther) AddBlockedCommand(command []string) *testAuther {
+	a.cmdAuther.(*TestCommandAuther).AddBlockedCommand(command)
+	return a
+}
+
 func (a *testAuther) GetAuditer() *audit.TestAudit {
 	return a.authGlobal.auditer.(*audit.TestAudit)
 }

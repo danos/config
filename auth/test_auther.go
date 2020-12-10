@@ -50,9 +50,36 @@ func (a *TestCommandAccounter) AccountCommand(
 	a.NewTaskAccounter(uid, groups, cmd, pathAttrs).AccountStop(nil)
 }
 
+type blockedCommand []string
+
 type TestCommandAuther struct {
 	CommandAuther
-	cmdReqs TestAutherRequests
+	cmdReqs     TestAutherRequests
+	blockedCmds []blockedCommand
+}
+
+func (a *TestCommandAuther) AddBlockedCommand(command []string) {
+	a.blockedCmds = append(a.blockedCmds, command)
+}
+
+func (a *TestCommandAuther) CommandIsBlocked(command []string) bool {
+	for _, entry := range a.blockedCmds {
+		if len(entry) != len(command) {
+			continue
+		}
+		match_found := true
+		for index, item := range entry {
+			if item != command[index] {
+				match_found = false
+				break
+			}
+		}
+		if match_found {
+			return true
+		}
+	}
+
+	return false
 }
 
 func (a *TestCommandAuther) AuthorizeCommand(
@@ -61,10 +88,12 @@ func (a *TestCommandAuther) AuthorizeCommand(
 	cmd []string,
 	pathAttrs *pathutil.PathAttrs,
 ) bool {
-	// For now we just log command authorization requests for later validation
+
+	// Log command authorization requests for later validation
 	req := NewTestAutherCommandRequest(T_REQ_AUTH, cmd, pathAttrs)
 	a.cmdReqs.Reqs = append(a.cmdReqs.Reqs, req)
-	return true
+
+	return !a.CommandIsBlocked(cmd)
 }
 
 type TestDataAuther struct {
