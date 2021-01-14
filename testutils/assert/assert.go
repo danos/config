@@ -1,4 +1,4 @@
-// Copyright (c) 2019, AT&T Intellectual Property.
+// Copyright (c) 2019, 2021, AT&T Intellectual Property.
 // All rights reserved.
 //
 // Copyright (c) 2016-2017 by Brocade Communications Systems, Inc.
@@ -61,6 +61,31 @@ func (e *ExpectedMessages) ContainedIn(t *testing.T, actual string) {
 		if !strings.Contains(actual, exp) {
 			t.Fatalf("Actual output doesn't contain expected output:\n"+
 				"Exp:\n%s\nAct:\n%v\n", exp, actual)
+		}
+	}
+}
+
+func (e *ExpectedMessages) ContainedInOrderIn(t *testing.T, actual string) {
+	if len(actual) == 0 {
+		t.Fatalf("No output in which to search for expected message(s).")
+		return
+	}
+
+	actIx := 0
+	actualLines := strings.Split(actual, "\n")
+
+	for _, exp := range e.expected {
+		found := false
+		for ; actIx < len(actualLines); actIx++ {
+			if strings.Contains(actualLines[actIx], exp) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf(
+				"Actual output doesn't contain expected output in order:\n"+
+					"Exp:\n%s\nAct:\n%v\n", exp, actual)
 		}
 	}
 }
