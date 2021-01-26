@@ -1,4 +1,4 @@
-// Copyright (c) 2019, AT&T Intellectual Property. All rights reserved.
+// Copyright (c) 2019-2021, AT&T Intellectual Property. All rights reserved.
 //
 // SPDX-License-Identifier: MPL-2.0
 //
@@ -6,9 +6,12 @@
 package platform_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/danos/config/platform"
+	"github.com/danos/config/testutils/assert"
+	"github.com/danos/utils/exec"
 )
 
 var expected = map[string]*platform.Definition{
@@ -82,7 +85,7 @@ func slicesMatch(slc1, slc2 []string) bool {
 }
 
 func TestLoadDefinitions(t *testing.T) {
-	ps := platform.NewPlatform().PlatformBaseDir("testdata").
+	ps := platform.NewPlatform().PlatformBaseDir("testdata/good").
 		LoadDefinitions()
 	for platID, exp := range expected {
 
@@ -103,6 +106,55 @@ func TestLoadDefinitions(t *testing.T) {
 			t.Fatalf("DisabledFeatures not as expected for platform %s Exp: %v Got: %v\n",
 				platID, exp.DisabledFeatures, got.DisabledFeatures)
 		}
+	}
+
+}
+
+type ignoreTest struct {
+	platforms string
+	expected  []string
+}
+
+func runIgnoreTest(t *testing.T, test ignoreTest) {
+
+	fn := func() ([]*exec.Output, []error, bool) {
+		platform.NewPlatform().PlatformBaseDir(test.platforms).
+			LoadDefinitions()
+
+		return nil, []error{}, true
+	}
+
+	_, _, _, out := assert.RunTestAndCaptureStdout(fn)
+
+	for _, exp := range test.expected {
+		if !strings.Contains(out, exp) {
+			t.Fatalf("Output not as expected for platforms %s\n Expected: %s\n Got: %s\n",
+				test.platforms, exp, out)
+		}
+	}
+}
+
+func TestLoadDefinitionsIgnore(t *testing.T) {
+	testcases := []ignoreTest{
+		{
+			platforms: "testdata/badmodule",
+			expected: []string{"Ignoring invalid Yang file: 'vyatta-bar-base-yang-v1.yang  malformedbasemodule.yang'",
+				"Ignoring invalid Yang file: 'vyatta-deviations-bar-tiny-v1.yang malformedplatformmodule.yang'"},
+		},
+		{
+			platforms: "testdata/badfeature",
+			expected: []string{"Ignoring invalid Yang feature: 'vyatta-bar-base-v1:enable-bar malformed:basefeature'",
+				"Ignoring invalid Yang feature: 'vyatta-bar-v1:software-features malformed:platformfeature'"},
+		},
+		{
+			platforms: "testdata/baddisabledfeature",
+			expected: []string{"Ignoring invalid Yang feature: 'vyatta-op-bar-base-v1:fast-bar malformedbase:disabledfeature'",
+				"Ignoring invalid Yang feature: 'vyatta-bar-v1:big-queues malformedplatformdisabledfeature'"},
+		},
+	}
+
+	for _, test := range testcases {
+		runIgnoreTest(t, test)
 	}
 
 }

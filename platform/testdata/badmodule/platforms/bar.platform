@@ -1,0 +1,17 @@
+[Vyatta Platform]
+
+[Base FeatureBarBaseDefinitions]
+Yang=vyatta-deviations-bar-base-v1.yang, vyatta-bar-base-yang-v1.yang  malformedbasemodule.yang
+Features=vyatta-bar-base-v1:enable-bar
+DisabledFeatures=vyatta-op-bar-base-v1:fast-bar
+
+[Platform tinybox]
+Base=FeatureBarBaseDefinitions
+Yang=vyatta-deviations-bar-tiny-v1.yang malformedplatformmodule.yang
+Features=vyatta-bar-v1:test-feature,vyatta-bar-v1:extra-feature,vyatta-bar-v1:software-features
+DisabledFeatures=vyatta-bar-v1:big-queues
+
+[Platform mediumbox]
+Base=FeatureBarBaseDefinitions
+Yang=vyatta-deviations-bar-medium-v1.yang
+Features=vyatta-bar-v1:test-feature,vyatta-bar-v1:extra-feature
