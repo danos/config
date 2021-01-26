@@ -1,4 +1,4 @@
-// Copyright (c) 2019, AT&T Intellectual Property.
+// Copyright (c) 2019-2021, AT&T Intellectual Property.
 // All rights reserved.
 //
 // SPDX-License-Identifier: MPL-2.0
@@ -60,7 +60,7 @@ func (p *Platforms) LoadDefinitions() *Platforms {
 		iniFiles, err := ini.Load(f)
 		if err != nil {
 			// Ignore troublesome files
-			fmt.Printf("Error processing platform file: %s\n", f)
+			fmt.Printf("Error processing platform file %s: %s\n", f, err)
 			continue
 		}
 		bases := make(map[string]*Definition)
@@ -83,9 +83,9 @@ func (p *Platforms) LoadDefinitions() *Platforms {
 					if !ok {
 						continue
 					}
-					config.Yang = appendUnique(config.Yang, ref.Yang)
-					config.Features = appendUnique(config.Features, ref.Features)
-					config.DisabledFeatures = appendUnique(config.DisabledFeatures, ref.DisabledFeatures)
+					config.Yang = appendUnique(config.Yang, ref.Yang, validateFile)
+					config.Features = appendUnique(config.Features, ref.Features, validateFeature)
+					config.DisabledFeatures = appendUnique(config.DisabledFeatures, ref.DisabledFeatures, validateFeature)
 				}
 				p.Platforms[platform] = config
 			}
@@ -181,17 +181,45 @@ func processSection(platformName string, section *ini.Section, cfg map[string]*D
 		config = newDefinition()
 	}
 	yang := section.Key("Yang").Strings(",")
-	config.Yang = appendUnique(config.Yang, yang)
+	config.Yang = appendUnique(config.Yang, yang, validateFile)
 	feats := section.Key("Features").Strings(",")
-	config.Features = appendUnique(config.Features, feats)
+	config.Features = appendUnique(config.Features, feats, validateFeature)
 	disabledfeats := section.Key("DisabledFeatures").Strings(",")
-	config.DisabledFeatures = appendUnique(config.DisabledFeatures, disabledfeats)
+	config.DisabledFeatures = appendUnique(config.DisabledFeatures, disabledfeats, validateFeature)
 
 	cfg[platformName] = config
 
 }
 
-func appendUnique(orig, new []string) []string {
+type validator func(s string) bool
+
+func validateFeature(s string) bool {
+
+	rslt := true
+	if strings.Count(s, ":") != 1 {
+		rslt = false
+	}
+
+	if strings.ContainsAny(s, "\n ") {
+		rslt = false
+	}
+
+	if !rslt {
+		fmt.Printf("Ignoring invalid Yang feature: '%s'\n", s)
+	}
+	return rslt
+}
+
+func validateFile(s string) bool {
+
+	if strings.ContainsAny(s, "\n ") {
+		fmt.Printf("Ignoring invalid Yang file: '%s'\n", s)
+		return false
+	}
+	return true
+}
+
+func appendUnique(orig, new []string, validator validator) []string {
 	exists := func(sl []string, s string) bool {
 		for _, aa := range sl {
 			if aa == s {
@@ -201,6 +229,9 @@ func appendUnique(orig, new []string) []string {
 		return false
 	}
 	for _, a := range new {
+		if !validator(a) {
+			continue
+		}
 		if !exists(orig, a) {
 			orig = append(orig, a)
 		}
