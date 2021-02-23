@@ -1,3 +1,15 @@
+golang-github-danos-config (1.8) unstable; urgency=medium
+
+  [ William Ivory ]
+  * Add support for blocking AAA authorization to test auth.
+  * Add ContainedInOrderIn() to ExpectedMessages
+
+  [ Paul Carson ]
+  * Validate platform files and features
+  * Improved platform file unit tests (Closes: VRVDR-53901)
+
+ -- William Ivory <william.ivory@intl.att.com>  Tue, 23 Feb 2021 13:44:51 +0000
+
 golang-github-danos-config (1.7) unstable; urgency=medium
 
   [ John Southworth ]
