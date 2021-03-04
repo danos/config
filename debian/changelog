@@ -1,3 +1,9 @@
+golang-github-danos-config (1.7.1) unstable; urgency=medium
+
+  * Add support for blocking AAA authorization to test auth.
+
+ -- William Ivory <william.ivory@intl.att.com>  Thu, 04 Mar 2021 17:42:57 +0000
+
 golang-github-danos-config (1.7) unstable; urgency=medium
 
   [ John Southworth ]
