@@ -147,10 +147,16 @@ func TestLogReqPath(t *testing.T) {
 	a.LogReqPath(adb.Uid, path, &pathAttrs, P_UPDATE, false)
 
 	expUserLogs := audit.UserLogSlice{
-		audit.UserLog{audit.LOG_TYPE_USER_CFG,
-			genLogReqPathMsg(adb.Uid, "set foo bar", P_READ), 1},
-		audit.UserLog{audit.LOG_TYPE_USER_CFG,
-			genLogReqPathMsg(adb.Uid, "set foo **", P_UPDATE), 0},
+		audit.UserLog{
+			Type: audit.LOG_TYPE_USER_CFG,
+			Msg: genLogReqPathMsg(adb.Uid, "set foo bar", P_READ),
+			Result: 1,
+		},
+		audit.UserLog{
+			Type: audit.LOG_TYPE_USER_CFG,
+			Msg: genLogReqPathMsg(adb.Uid, "set foo **", P_UPDATE),
+			Result: 0,
+		},
 	}
 	audit.AssertUserLogSliceEqual(t, expUserLogs, auditer.GetUserLogs())
 }
@@ -170,10 +176,16 @@ func TestLogReqPathRedactionFailure(t *testing.T) {
 	a.LogReqPath(adb.Uid, path, &pathAttrs, P_CREATE, false)
 
 	expUserLogs := audit.UserLogSlice{
-		audit.UserLog{audit.LOG_TYPE_USER_CFG,
-			genLogReqPathMsg(adb.Uid, "<path redaction failed>", P_READ), 1},
-		audit.UserLog{audit.LOG_TYPE_USER_CFG,
-			genLogReqPathMsg(adb.Uid, "<path redaction failed>", P_CREATE), 0},
+		audit.UserLog{
+			Type: audit.LOG_TYPE_USER_CFG,
+			Msg: genLogReqPathMsg(adb.Uid, "<path redaction failed>", P_READ),
+			Result: 1,
+		},
+		audit.UserLog{
+			Type: audit.LOG_TYPE_USER_CFG,
+			Msg: genLogReqPathMsg(adb.Uid, "<path redaction failed>", P_CREATE),
+			Result: 0,
+		},
 	}
 	audit.AssertUserLogSliceEqual(t, expUserLogs, auditer.GetUserLogs())
 }

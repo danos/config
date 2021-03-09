@@ -35,10 +35,16 @@ func TestAccountCommandAudit(t *testing.T) {
 	a.AccountCommand(1000, []string{}, cmd, &pathAttrs)
 
 	expUserLogs := audit.UserLogSlice{
-		audit.UserLog{audit.LOG_TYPE_USER_CMD,
-			genAuditCmdAccounterMsg("delete foo bar", 1000), 1},
-		audit.UserLog{audit.LOG_TYPE_USER_CMD,
-			genAuditCmdAccounterMsg("delete foo **", 1000), 1},
+		audit.UserLog{
+			Type: audit.LOG_TYPE_USER_CMD,
+			Msg: genAuditCmdAccounterMsg("delete foo bar", 1000),
+			Result: 1,
+		},
+		audit.UserLog{
+			Type: audit.LOG_TYPE_USER_CMD,
+			Msg: genAuditCmdAccounterMsg("delete foo **", 1000),
+			Result: 1,
+		},
 	}
 	audit.AssertUserLogSliceEqual(t, expUserLogs, auditer.GetUserLogs())
 }
