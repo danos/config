@@ -45,15 +45,6 @@ As the DotComponent files may come from third party applications, we need to
 validate their content.  Different parts of this are done in different
 places as appropriate.
 
-### Model Extension
-
-The Model extension contains a serviceBus object that was originally
-intended to hold component information, but this is now superseded by
-the ModelSet extension.
-
-The 'service-bus' configd YANG extension is part of the Model extension,
-but is not currently used.
-
 ### ModelSet Extension
 
 The ModelSet extension holds a slice of 'services' which represent each
