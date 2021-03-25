@@ -20,7 +20,6 @@ import (
 	"github.com/danos/yang/data/datanode"
 	"github.com/danos/yang/data/encoding"
 	yang "github.com/danos/yang/schema"
-	"github.com/danos/yangd"
 	"github.com/godbus/dbus"
 )
 
@@ -70,7 +69,6 @@ type ModelSet interface {
 
 type service struct {
 	name      string
-	dispatch  yangd.Service
 	modMap    map[string]struct{}
 	setFilter func(s yang.Node, d datanode.DataNode,
 		children []datanode.DataNode) bool
@@ -97,7 +95,6 @@ type modelSet struct {
 	yang.ModelSet
 	*extensions
 	*state
-	dispatcher      yangd.Dispatcher
 	services        map[string]*service
 	nsMap           map[string]string
 	orderedServices []string
@@ -129,10 +126,7 @@ func (c *CompilationExtensions) ExtendModelSet(
 	}
 	var service_map map[string]*service
 
-	dispatch := c.Dispatcher
-	if dispatch != nil {
-		service_map = getServiceMap(dispatch, modelToNamespaceMap)
-	}
+	service_map = getServiceMap(modelToNamespaceMap)
 
 	orderedServices, err := getOrderedServicesList(
 		VyattaV1ModelSet, defaultModel, c.ComponentConfig)
@@ -149,7 +143,7 @@ func (c *CompilationExtensions) ExtendModelSet(
 
 	ext := newExtend(nil)
 	return &modelSet{
-			m, ext, newState(m, ext), dispatch,
+			m, ext, newState(m, ext),
 			service_map, globalNSMap, orderedServices, defaultModel},
 		err
 }

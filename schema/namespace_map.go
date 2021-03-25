@@ -10,13 +10,12 @@ package schema
 import (
 	"bytes"
 	"fmt"
+	"strings"
 
 	"github.com/danos/utils/tsort"
 	"github.com/danos/vci/conf"
 	"github.com/danos/yang/data/datanode"
 	yang "github.com/danos/yang/schema"
-	"github.com/danos/yangd"
-	"strings"
 )
 
 type modelToNamespaceMap map[string]*nsMaps
@@ -324,22 +323,16 @@ func createDefaultNamespaceList(
 // For a specific modelset, provide a map of service objects, one per model,
 // that contain:
 //
-// - a dispatcher (providing communication with the service)
 // - a map of namespaces the service covers
 // - a function to check if a given YANG node belongs to this service.
 //
 func getServiceMap(
-	disp yangd.Dispatcher, modelToNSMap modelToNamespaceMap,
+	modelToNSMap modelToNamespaceMap,
 ) map[string]*service {
 
 	service_map := make(map[string]*service, len(modelToNSMap))
 
 	for name, modMap := range modelToNSMap {
-		serv, err := disp.NewService(name)
-		if err != nil {
-			fmt.Printf("Failed to create service: %s\n", err.Error())
-			continue
-		}
 		setMap := modMap.setMap // Avoid 'closure pitfall'
 		setFilter := func(s yang.Node, d datanode.DataNode,
 			children []datanode.DataNode) bool {
@@ -368,7 +361,6 @@ func getServiceMap(
 		}
 		service_map[name] = &service{
 			name:        name,
-			dispatch:    serv,
 			modMap:      modMap.setMap,
 			setFilter:   setFilter,
 			checkMap:    modMap.checkMap,

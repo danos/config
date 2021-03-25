@@ -13,11 +13,9 @@ import (
 	"github.com/danos/yang/parse"
 	"github.com/danos/yang/xpath"
 	"github.com/danos/yang/xpath/xutils"
-	"github.com/danos/yangd"
 )
 
 type CompilationExtensions struct {
-	Dispatcher      yangd.Dispatcher
 	ComponentConfig []*conf.ServiceConfig
 }
 

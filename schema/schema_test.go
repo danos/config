@@ -22,7 +22,6 @@ import (
 	"github.com/danos/yang/parse"
 	"github.com/danos/yang/xpath"
 	"github.com/danos/yang/xpath/xutils"
-	"github.com/danos/yangd"
 )
 
 // Schema Template with '%s' at end for insertion of schema for each test.
@@ -41,38 +40,36 @@ module test-configd-compile {
 // Create ModelSet structure from multiple buffers, each buffer
 // represents a single yang module.
 func GetConfigSchema(bufs ...[]byte) (ModelSet, error) {
-	return GetSchemaWithDispatcher(nil, nil, compile.IsConfig, bufs...)
+	return GetSchemaWithComponents(nil, compile.IsConfig, bufs...)
 }
 
 func GetConfigSchemaWithWarnings(bufs ...[]byte,
 ) (ModelSet, []xutils.Warning, error) {
-	return GetSchemaWithDispatcherAndWarnings(
-		nil, nil, compile.IsConfig, bufs...)
+	return GetSchemaWithWarnings(
+		nil, compile.IsConfig, bufs...)
 }
 
 func GetConfigSchemaWithWarningsAndCustomFunctions(
 	userFnChecker xpath.UserCustomFunctionCheckerFn,
 	bufs ...[]byte,
 ) (ModelSet, []xutils.Warning, error) {
-	return GetSchemaWithDispatcherAndWarningsAndCustomFunctions(
-		nil, nil, compile.IsConfig, userFnChecker, bufs...)
+	return GetSchemaWithWarningsAndCustomFunctions(
+		nil, compile.IsConfig, userFnChecker, bufs...)
 }
 
-func GetConfigSchemaWithDispatcher(
-	disp yangd.Dispatcher,
+func GetConfigSchemaWithComponents(
 	comps []*conf.ServiceConfig,
 	bufs ...[]byte,
 ) (ModelSet, error) {
 
-	return GetSchemaWithDispatcher(disp, comps, compile.IsConfig, bufs...)
+	return GetSchemaWithComponents(comps, compile.IsConfig, bufs...)
 }
 
 func GetSchema(filter compile.SchemaFilter, bufs ...[]byte) (ModelSet, error) {
-	return GetSchemaWithDispatcher(nil, nil, filter, bufs...)
+	return GetSchemaWithComponents(nil, filter, bufs...)
 }
 
-func GetSchemaWithDispatcher(
-	disp yangd.Dispatcher,
+func GetSchemaWithComponents(
 	comps []*conf.ServiceConfig,
 	filter compile.SchemaFilter,
 	bufs ...[]byte,
@@ -89,11 +86,10 @@ func GetSchemaWithDispatcher(
 		modules[mod] = t
 	}
 	return CompileModules(modules, "", false, filter,
-		&CompilationExtensions{disp, comps})
+		&CompilationExtensions{comps})
 }
 
-func GetSchemaWithDispatcherAndWarnings(
-	disp yangd.Dispatcher,
+func GetSchemaWithWarnings(
 	comps []*conf.ServiceConfig,
 	filter compile.SchemaFilter,
 	bufs ...[]byte,
@@ -110,11 +106,10 @@ func GetSchemaWithDispatcherAndWarnings(
 		modules[mod] = t
 	}
 	return CompileModulesWithWarnings(modules, "", false, filter,
-		&CompilationExtensions{disp, comps})
+		&CompilationExtensions{comps})
 }
 
-func GetSchemaWithDispatcherAndWarningsAndCustomFunctions(
-	disp yangd.Dispatcher,
+func GetSchemaWithWarningsAndCustomFunctions(
 	comps []*conf.ServiceConfig,
 	filter compile.SchemaFilter,
 	userFnChecker xpath.UserCustomFunctionCheckerFn,
@@ -132,7 +127,7 @@ func GetSchemaWithDispatcherAndWarningsAndCustomFunctions(
 		modules[mod] = t
 	}
 	return CompileModulesWithWarningsAndCustomFunctions(
-		modules, "", false, filter, &CompilationExtensions{disp, comps},
+		modules, "", false, filter, &CompilationExtensions{comps},
 		userFnChecker)
 }
 
@@ -211,35 +206,6 @@ func expectValidationSuccess(
 	}
 }
 
-// Test Dispatcher and Service objects to allow injection of customised
-// functionality.
-
-type testDispatcher struct{}
-
-type testService struct {
-	name string
-}
-
-func (d *testDispatcher) NewService(name string) (yangd.Service, error) {
-	return &testService{name: name}, nil
-}
-
-func (s *testService) GetRunning(path string) ([]byte, error) {
-	return nil, nil
-}
-
-func (s *testService) GetState(path string) ([]byte, error) {
-	return nil, nil
-}
-
-func (s *testService) ValidateCandidate(candidate []byte) error {
-	return nil
-}
-
-func (s *testService) SetRunning(candidate []byte) error {
-	return nil
-}
-
 func checkLastCandidateConfig(
 	t *testing.T,
 	name string,
@@ -283,7 +249,6 @@ func getTestServiceMap(t *testing.T, yangDir string, dotCompFiles ...string,
 ) (map[string]*service, []string) {
 
 	compExt := &CompilationExtensions{
-		Dispatcher: &testDispatcher{},
 		ComponentConfig: getComponentConfigs(
 			t, dotCompFiles...),
 	}
@@ -305,7 +270,6 @@ func getModelSet(t *testing.T, yangDir string, dotCompFiles ...string,
 ) (*modelSet, error) {
 
 	compExt := &CompilationExtensions{
-		Dispatcher: &testDispatcher{},
 		ComponentConfig: getComponentConfigs(
 			t, dotCompFiles...),
 	}

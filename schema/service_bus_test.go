@@ -83,8 +83,7 @@ func TestYangdServiceBus(t *testing.T) {
 		t.Fatalf("Unexpected component config parse failure:\n  %s\n\n", err.Error())
 	}
 
-	ms, err := GetConfigSchemaWithDispatcher(
-		&testDispatcher{},
+	ms, err := GetConfigSchemaWithComponents(
 		[]*conf.ServiceConfig{compCfg},
 		ext_text, sch_text)
 	if err != nil {
