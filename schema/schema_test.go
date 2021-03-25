@@ -15,6 +15,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/danos/config/compmgrtest"
 	"github.com/danos/vci/conf"
 	"github.com/danos/yang/compile"
 	"github.com/danos/yang/data/encoding"
@@ -210,41 +211,6 @@ func expectValidationSuccess(
 	}
 }
 
-// Test Service Manager
-//
-// Used to replace the default service manager with one where we can control the
-// results, eg for the call to IsActive().
-type testSvcManager struct{}
-
-func enableTestSvcManager() svcMgrFnType {
-	oldFn := svcMgrFn
-	svcMgrFn = func() SvcManager {
-		return createTestSvcManager()
-	}
-	return oldFn
-}
-
-func disableTestSvcManager(oldFn svcMgrFnType) { svcMgrFn = oldFn }
-
-func createTestSvcManager() *testSvcManager {
-	return &testSvcManager{}
-}
-
-func (tsm *testSvcManager) Close()                            { return }
-func (tsm *testSvcManager) Start(name string) error           { return nil }
-func (tsm *testSvcManager) Reload(name string) error          { return nil }
-func (tsm *testSvcManager) ReloadOrRestart(name string) error { return nil }
-func (tsm *testSvcManager) Restart(name string) error         { return nil }
-func (tsm *testSvcManager) ReloadServices() error             { return nil }
-func (tsm *testSvcManager) Stop(name string) error            { return nil }
-func (tsm *testSvcManager) Enable(name string) error          { return nil }
-func (tsm *testSvcManager) Disable(name string) error         { return nil }
-
-// For now, assume any component is active.
-func (tsm *testSvcManager) IsActive(name string) (bool, error) {
-	return true, nil
-}
-
 // Test Dispatcher and Service objects to allow injection of customised
 // functionality.
 
@@ -267,42 +233,20 @@ func (s *testService) GetState(path string) ([]byte, error) {
 }
 
 func (s *testService) ValidateCandidate(candidate []byte) error {
-	lastValidateCandidateCfg.candidateCfg = candidate
-	lastValidateCandidateCfg.svcName = s.name
 	return nil
 }
 
 func (s *testService) SetRunning(candidate []byte) error {
-	lastSetCandidateCfg.candidateCfg = candidate
-	lastSetCandidateCfg.svcName = s.name
 	return nil
 }
-
-type testCfg struct {
-	svcName      string
-	candidateCfg []byte
-}
-
-var lastValidateCandidateCfg = &testCfg{}
-var lastSetCandidateCfg = &testCfg{}
-
-// TODO - make method of testCfg object.
 
 func checkLastCandidateConfig(
 	t *testing.T,
 	name string,
-	lastCfg *testCfg,
+	actualCfg string,
 	expCfgSnippets []string,
 	unexpCfgSnippets []string,
 ) {
-	if name != lastCfg.svcName {
-		t.Fatalf("Last candidate config was for %s; exp %s\n",
-			lastCfg.svcName, name)
-		return
-	}
-
-	actualCfg := string(lastCfg.candidateCfg)
-
 	for _, cfg := range expCfgSnippets {
 		cfg := stripWS(cfg)
 		if !strings.Contains(actualCfg, cfg) {
@@ -456,9 +400,6 @@ func checkServiceValidation(
 	expCfgSnippets []string,
 	unexpCfgSnippets []string,
 ) {
-	svcFn := enableTestSvcManager()
-	defer disableTestSvcManager(svcFn)
-
 	svc := extMs.services[svcName]
 	if svc == nil {
 		t.Fatalf("Unable to find service %s\n", svcName)
@@ -471,9 +412,12 @@ func checkServiceValidation(
 		return
 	}
 
-	extMs.ServiceValidation(dn, nil /* logFn */)
+	testCompMgr := compmgrtest.NewTestCompMgr(t)
 
-	checkLastCandidateConfig(t, svcName, lastValidateCandidateCfg,
+	extMs.ServiceValidation(testCompMgr, dn, nil /* logFn */)
+
+	checkLastCandidateConfig(
+		t, svcName, testCompMgr.ValidatedConfig(svcName),
 		expCfgSnippets, unexpCfgSnippets)
 
 }
@@ -487,9 +431,6 @@ func checkSetRunning(
 	expCfgSnippets []string,
 	unexpCfgSnippets []string,
 ) {
-	svcFn := enableTestSvcManager()
-	defer disableTestSvcManager(svcFn)
-
 	svc := extMs.services[svcName]
 	if svc == nil {
 		t.Fatalf("Unable to find service %s\n", svcName)
@@ -504,9 +445,12 @@ func checkSetRunning(
 
 	changedNSMap := make(map[string]bool)
 	changedNSMap[svcNs] = true
-	extMs.ServiceSetRunning(dn, &changedNSMap)
 
-	checkLastCandidateConfig(t, svcName, lastSetCandidateCfg,
+	testCompMgr := compmgrtest.NewTestCompMgr(t)
+
+	extMs.ServiceSetRunning(testCompMgr, dn, &changedNSMap)
+
+	checkLastCandidateConfig(t, svcName, testCompMgr.CommittedConfig(svcName),
 		expCfgSnippets, unexpCfgSnippets)
 }
 

@@ -9,6 +9,7 @@ package schema
 
 import (
 	"fmt"
+	"reflect"
 	"strings"
 	"time"
 
@@ -16,8 +17,6 @@ import (
 	rfc7951data "github.com/danos/encoding/rfc7951/data"
 	"github.com/danos/mgmterror"
 	"github.com/danos/utils/exec"
-	"github.com/danos/vci"
-	"github.com/danos/vci/services"
 	"github.com/danos/yang/data/datanode"
 	"github.com/danos/yang/data/encoding"
 	yang "github.com/danos/yang/schema"
@@ -35,18 +34,33 @@ type ModelSet interface {
 	ExtendedNode
 	PathDescendant([]string) *TmplCompat
 	OpdPathDescendant([]string) *TmplCompat
-	ListActiveModels(config datanode.DataNode) []string
-	ListActiveOrConfiguredModels(config datanode.DataNode) []string
-	ServiceValidation(datanode.DataNode, commitTimeLogFn) []error
-	ServiceSetRunning(datanode.DataNode, *map[string]bool) []*exec.Output
+	ListActiveModels(
+		compMgr ComponentManager,
+		config datanode.DataNode) []string
+	ListActiveOrConfiguredModels(
+		compMgr ComponentManager,
+		config datanode.DataNode) []string
+	ServiceValidation(
+		ComponentManager,
+		datanode.DataNode,
+		commitTimeLogFn,
+	) []error
+	ServiceSetRunning(
+		ComponentManager,
+		datanode.DataNode,
+		*map[string]bool,
+	) []*exec.Output
 	ServiceSetRunningWithLog(
+		ComponentManager,
 		datanode.DataNode,
 		*map[string]bool,
 		commitTimeLogFn,
 	) []*exec.Output
 	ServiceGetRunning(
+		ComponentManager,
 		ConfigMultiplexerFn) (*data.Node, error)
 	ServiceGetState(
+		ComponentManager,
 		datanode.DataNode,
 		*rfc7951data.Tree,
 		StateLogger) (*rfc7951data.Tree, error)
@@ -77,97 +91,6 @@ func (s *service) FilterCheckTree(n Node, dn datanode.DataNode) []byte {
 
 func (s *service) HasConfiguration(n Node, dn datanode.DataNode) bool {
 	return string(s.FilterSetTree(n, dn)) != "{}"
-}
-
-func convertServiceErrors(e dbus.Error) []*exec.Output {
-	if e.Name == dbus.ErrMsgNoObject.Name {
-		//Ignore these until the proper error plumbing is done
-		return nil
-	}
-	var outs []*exec.Output
-
-	for _, e := range e.Body {
-		ee := &exec.Output{Path: []string{""},
-			Output: fmt.Sprint(e)}
-		outs = append(outs, ee)
-	}
-	return outs
-}
-
-func (s *service) GetState(path []string) ([]byte, error) {
-	p := strings.Join(path, "/")
-	return s.dispatch.GetState(p)
-}
-
-// Extracts an embedded MgmtError from a dbus.Error body
-func getRpcError(name string, body []interface{}) *mgmterror.MgmtError {
-	const errpfx = "com.vyatta.rpcerror."
-	var re mgmterror.MgmtError
-	if !strings.HasPrefix(name, errpfx) {
-		return nil // not a MgmtError
-	}
-	if err := dbus.Store(body, &re); err != nil {
-		return nil // malformed MgmtError
-	}
-	return &re
-}
-
-// extractValidationErrorFromDbusError()
-//
-// This takes a DBUS error that contains a MgmtError inside, and extracts
-// it.
-func extractValidationErrorFromDbusError(name string, err dbus.Error) error {
-
-	// It's not an error if the component has no config object so quietly
-	// ignore this type of error.
-	if err.Name == "org.freedesktop.DBus.Error.NoSuchObject" {
-		return nil
-	}
-
-	// We expect the error to be an 'RPC' MgmtError, so check for this and
-	// return the error if so.
-	rpcerr := getRpcError(err.Name, err.Body)
-	if rpcerr != nil {
-		return rpcerr
-	}
-
-	// Not an expected error type so do our best to present it.
-	mgmtErr := mgmterror.NewOperationFailedApplicationError()
-	mgmtErr.Path = name
-	mgmtErr.Message = fmt.Sprint(err.Body)
-	return mgmtErr
-}
-
-func (s *service) ValidateCandidate(
-	n Node, dn datanode.DataNode,
-) []error {
-
-	jsonTree := s.FilterCheckTree(n, dn)
-	err := s.dispatch.ValidateCandidate(jsonTree)
-	if err != nil {
-		// We only expect a single error, but this gets wrapped up inside
-		// a DBUS error and needs extracting.
-		if e, ok := err.(dbus.Error); ok {
-			retErr := extractValidationErrorFromDbusError(s.name, e)
-			if retErr != nil {
-				return []error{retErr}
-			}
-		}
-	}
-	return nil
-}
-
-func (s *service) SetRunning(n Node, dn datanode.DataNode) []*exec.Output {
-	jsonTree := s.FilterSetTree(n, dn)
-	err := s.dispatch.SetRunning(jsonTree)
-	if err != nil {
-		fmt.Printf("Failed to run service provisioning for %s: %s\n",
-			s.name, err.Error())
-		if e, ok := err.(dbus.Error); ok {
-			return convertServiceErrors(e)
-		}
-	}
-	return nil
 }
 
 type modelSet struct {
@@ -231,29 +154,15 @@ func (c *CompilationExtensions) ExtendModelSet(
 		err
 }
 
-type SvcManager interface {
-	Close()
-	Start(name string) error
-	Reload(name string) error
-	ReloadOrRestart(name string) error
-	Restart(name string) error
-	ReloadServices() error
-	Stop(name string) error
-	Enable(name string) error
-	Disable(name string) error
-	IsActive(name string) (bool, error)
-}
-
-// Allows for default service manager to be replaced for testing.  Not as clean
-// as full dependency injection solution, but sufficient for now.
-type svcMgrFnType func() SvcManager
-
-var svcMgrFn svcMgrFnType = func() SvcManager {
-	return services.NewManager()
-}
-
-func createServiceManager() SvcManager {
-	return svcMgrFn()
+func checkAndInitOpsMgr(compMgr ComponentManager, operation string) error {
+	if compMgr == nil || reflect.ValueOf(compMgr).IsNil() {
+		return fmt.Errorf("%s: No component manager provided.", operation)
+	}
+	if err := compMgr.Dial(); err != nil {
+		return fmt.Errorf("%s: Unable to initialise component comms: %s",
+			operation, err)
+	}
+	return nil
 }
 
 // ListActiveModels returns the topologically sorted list of models
@@ -261,16 +170,15 @@ func createServiceManager() SvcManager {
 // not running, they will not be returned.
 //
 // Typical usage would be for getting a list of models to query for state.
-func (m *modelSet) ListActiveModels(config datanode.DataNode) []string {
+func (m *modelSet) ListActiveModels(
+	compMgr ComponentManager,
+	config datanode.DataNode) []string {
 
 	out := make([]string, 0)
 
-	svcMgr := createServiceManager()
-	defer svcMgr.Close()
-
 	for _, modelName := range m.orderedServices {
 		svc := m.services[modelName]
-		active, err := svcMgr.IsActive(svc.name)
+		active, err := compMgr.IsActive(svc.name)
 		if err != nil {
 			log(err.Error())
 		}
@@ -286,18 +194,15 @@ func (m *modelSet) ListActiveModels(config datanode.DataNode) []string {
 // that are active in the provided config.  Models that have config but are
 // not active are returned as they may need to be activated eg for validation.
 func (m *modelSet) ListActiveOrConfiguredModels(
+	compMgr ComponentManager,
 	config datanode.DataNode,
 ) []string {
 
 	out := make([]string, 0)
-
-	svcMgr := createServiceManager()
-	defer svcMgr.Close()
-
 	for _, modelName := range m.orderedServices {
 		svc := m.services[modelName]
 
-		active, err := svcMgr.IsActive(svc.name)
+		active, err := compMgr.IsActive(svc.name)
 		if err != nil {
 			log(err.Error())
 		}
@@ -317,21 +222,27 @@ func (m *modelSet) ListActiveOrConfiguredModels(
 }
 
 func (m *modelSet) ServiceValidation(
+	compMgr ComponentManager,
 	dn datanode.DataNode,
 	logFn commitTimeLogFn,
 ) []error {
 
-	if m.dispatcher == nil {
-		return nil
+	if err := checkAndInitOpsMgr(compMgr, "ServiceValidation"); err != nil {
+		log(err.Error())
+		return []error{err}
 	}
 
 	var errs []error
-	for _, modelName := range m.ListActiveOrConfiguredModels(dn) {
+	for _, modelName := range m.ListActiveOrConfiguredModels(
+		compMgr, dn) {
 		startTime := time.Now()
+
 		svc := m.services[modelName]
-		new_errs := svc.ValidateCandidate(m, dn)
-		if len(new_errs) > 0 {
-			errs = append(errs, new_errs...)
+		jsonTree := svc.FilterCheckTree(m, dn)
+
+		err := compMgr.CheckConfigForModel(modelName, string(jsonTree))
+		if err != nil {
+			errs = append(errs, err)
 		}
 		if logFn != nil {
 			logFn(fmt.Sprintf("Check %s", modelName), startTime)
@@ -363,23 +274,29 @@ func log(output string) {
 }
 
 func (m *modelSet) ServiceSetRunning(
+	compMgr ComponentManager,
 	dn datanode.DataNode,
 	changedNSMap *map[string]bool,
 ) []*exec.Output {
-	return m.ServiceSetRunningWithLog(dn, changedNSMap, nil)
+	return m.ServiceSetRunningWithLog(compMgr, dn, changedNSMap, nil)
 }
 
 func (m *modelSet) ServiceSetRunningWithLog(
+	compMgr ComponentManager,
 	dn datanode.DataNode,
 	changedNSMap *map[string]bool,
 	commitLogFn commitTimeLogFn,
 ) []*exec.Output {
 
-	if m.dispatcher == nil {
-		return nil
-	}
-
 	log("Set Running configuration:\n")
+
+	var outs []*exec.Output
+
+	if err := checkAndInitOpsMgr(compMgr, "ServiceSetRunning"); err != nil {
+		ee := &exec.Output{Path: []string{""}, Output: err.Error()}
+		outs = append(outs, ee)
+		return outs
+	}
 
 	var changedSvcs map[string]bool
 	if changedNSMap != nil {
@@ -389,8 +306,6 @@ func (m *modelSet) ServiceSetRunningWithLog(
 		}
 		changedSvcs[m.defaultService] = true
 	}
-
-	var outs []*exec.Output
 
 	for _, ordServ := range m.orderedServices {
 		if changedSvcs != nil {
@@ -408,10 +323,19 @@ func (m *modelSet) ServiceSetRunningWithLog(
 			continue
 		}
 		log(fmt.Sprintf("\t'%s' has changed.\n", ordServ))
-		new_outs := serv.SetRunning(m, dn)
-		if len(new_outs) > 0 {
-			outs = append(outs, new_outs...)
+
+		jsonTree := serv.FilterSetTree(m, dn)
+		err := compMgr.SetConfigForModel(ordServ, string(jsonTree))
+		if err != nil {
+			fmt.Printf("Failed to run service provisioning for %s: %s\n",
+				ordServ, err.Error())
+			if e, ok := err.(dbus.Error); ok {
+				new_out := &exec.Output{Path: []string{""},
+					Output: fmt.Sprint(e)}
+				outs = append(outs, new_out)
+			}
 		}
+
 		if commitLogFn != nil {
 			commitLogFn(fmt.Sprintf("Commit %s", ordServ), startTime)
 		}
@@ -419,58 +343,62 @@ func (m *modelSet) ServiceSetRunningWithLog(
 	return outs
 }
 
-func (m *modelSet) ServiceGetRunning(cfgMuxFn ConfigMultiplexerFn,
+func (m *modelSet) ServiceGetRunning(
+	compMgr ComponentManager,
+	cfgMuxFn ConfigMultiplexerFn,
 ) (*data.Node, error) {
 
-	if m.dispatcher == nil {
-		return nil, nil
+	if err := checkAndInitOpsMgr(compMgr, "ServiceGetRunning"); err != nil {
+		return nil, err
 	}
 
 	var configs = make([][]byte, 0, len(m.services))
 
 	for _, serv := range m.services {
 		// Build up JSON config, then decode ...
-		jsonInput, err := serv.dispatch.GetRunning("")
+		var jsonInput string
+		err := compMgr.StoreConfigByModelInto(
+			serv.name, &jsonInput)
+
 		if err != nil {
-			return nil, fmt.Errorf("Unable to get running config for %s",
-				serv.name)
+			return nil, fmt.Errorf("Unable to get running config for %s: %s",
+				serv.name, err)
 		}
-		configs = append(configs, jsonInput)
+		configs = append(configs, []byte(jsonInput))
 	}
 
 	return cfgMuxFn(configs, m)
 }
 
 func (m *modelSet) ServiceGetState(
+	compMgr ComponentManager,
 	dn datanode.DataNode,
 	ft *rfc7951data.Tree,
 	logger StateLogger,
 ) (*rfc7951data.Tree, error) {
 
+	if err := checkAndInitOpsMgr(compMgr, "ServiceGetState"); err != nil {
+		return nil, err
+	}
+
 	allState := newRFC7951Merger(m, ft)
 
-	client, vciErr := vci.Dial()
-	if vciErr == nil {
-		defer client.Close()
-
-		for _, model := range m.ListActiveModels(dn) {
-			compStartTime := time.Now()
-
-			state := rfc7951data.TreeNew()
-			err := client.StoreStateByModelInto(model, state)
-			if err != nil {
-				// No error if component doesn't implement state.
-				_, ok := err.(*mgmterror.OperationNotSupportedApplicationError)
-				if ok {
-					logStateEvent(logger, fmt.Sprintf("%s no state fn", model))
-					continue
-				}
-				logStateEvent(logger, fmt.Sprintf("%s store fail: %s", model, err))
+	for _, model := range m.ListActiveModels(compMgr, dn) {
+		compStartTime := time.Now()
+		state := rfc7951data.TreeNew()
+		err := compMgr.StoreStateByModelInto(model, state)
+		if err != nil {
+			// No error if component doesn't implement state.
+			_, ok := err.(*mgmterror.OperationNotSupportedApplicationError)
+			if ok {
+				logStateEvent(logger, fmt.Sprintf("%s no state fn", model))
 				continue
 			}
-			allState.merge(state)
-			logStateTime(logger, fmt.Sprintf("  %s", model), compStartTime)
+			logStateEvent(logger, fmt.Sprintf("%s store fail: %s", model, err))
+			continue
 		}
+		allState.merge(state)
+		logStateTime(logger, fmt.Sprintf("  %s", model), compStartTime)
 	}
 
 	return allState.getTree(), nil

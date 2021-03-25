@@ -588,7 +588,9 @@ func (c *CfgNode) ValidateExec() ([]*exec.Output, []error, bool) {
 
 }
 
-func (c *CfgNode) Validate() ([]*exec.Output, []error, bool) {
+func (c *CfgNode) Validate(
+	compMgr schema.ComponentManager,
+) ([]*exec.Output, []error, bool) {
 	startTime := time.Now()
 	outs, errs, _ := c.ValidateExec()
 	c.ctx.LogCommitTime("Validation scripts", startTime)
@@ -599,7 +601,8 @@ func (c *CfgNode) Validate() ([]*exec.Output, []error, bool) {
 		// other valuable information.  If users need XPATH machine debug,
 		// they should use XYANG off-box / send us the config on which to
 		// run XYANG.
-		return schema.ValidateSchemaWithLog(c.Schema(), c.Node, false,
+		return schema.ValidateSchemaWithLog(
+			compMgr, c.Schema(), c.Node, false,
 			c.ctx.MustDebugThreshold(), c.ctx.LogCommitTime)
 	}
 	outs, errs, _ = exec.AppendOutput(validateSchemaFn, outs, errs)

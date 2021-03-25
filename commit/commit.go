@@ -48,6 +48,18 @@ type Context interface {
 	Effective() EffectiveDatabase
 }
 
+type ComponentContext interface {
+	CompMgr() schema.ComponentManager
+}
+
+func getComponentManager(ctx Context) schema.ComponentManager {
+	cmpCtx, hasCmpCtx := ctx.(ComponentContext)
+	if !hasCmpCtx {
+		return nil
+	}
+	return cmpCtx.CompMgr()
+}
+
 func runPrioTrees(
 	ctx Context,
 	setq *MinHeap,
@@ -101,7 +113,7 @@ func Validate(ctx Context) ([]*exec.Output, []error, bool) {
 	t := buildCommitTree(ctx, nil,
 		diff.NewNode(ctx.Candidate(), ctx.Running(), ctx.Schema(), nil),
 		false, true)
-	op, errs, ok := t.Validate()
+	op, errs, ok := t.Validate(getComponentManager(ctx))
 	ctx.LogCommitTime("Validate OVERALL", start)
 	return op, errs, ok
 }

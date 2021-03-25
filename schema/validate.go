@@ -23,6 +23,7 @@ func init() {
 }
 
 func ValidateSchemaWithLog(
+	compMgr ComponentManager,
 	sn Node,
 	dn datanode.DataNode,
 	debug bool,
@@ -48,7 +49,7 @@ func ValidateSchemaWithLog(
 	}
 
 	if ms, ok := sn.(ModelSet); ok {
-		service_errors := ms.ServiceValidation(dn, logFn)
+		service_errors := ms.ServiceValidation(compMgr, dn, logFn)
 		if len(service_errors) > 0 {
 			ok = false
 			errs = append(errs, service_errors...)
@@ -58,8 +59,13 @@ func ValidateSchemaWithLog(
 	return outs, errs, ok
 }
 
-func ValidateSchema(sn Node, dn datanode.DataNode, debug bool) (
+func ValidateSchema(
+	compMgr ComponentManager,
+	sn Node,
+	dn datanode.DataNode,
+	debug bool,
+) (
 	[]*exec.Output, []error, bool) {
 
-	return ValidateSchemaWithLog(sn, dn, debug, 0, nil)
+	return ValidateSchemaWithLog(compMgr, sn, dn, debug, 0, nil)
 }
