@@ -302,19 +302,15 @@ func createDefaultNamespaceList(
 ) map[string]struct{} {
 
 	defaultNamespaceList := make(map[string]struct{})
-	fmt.Printf("Adding modules to default component:\n")
 	for _, module := range m.Modules() {
 		if _, ok := nsMap[module.(Model).Namespace()]; !ok {
 			defaultNamespaceList[module.(Model).Namespace()] = struct{}{}
-			// Log so we have information for debugging ...
-			fmt.Printf(" - %s\n", module.(Model).Identifier())
 		}
 	}
 	for _, submod := range m.Submodules() {
 		submodNS := createSubmodNS(submod.Identifier(), submod.Namespace())
 		if _, ok := nsMap[submodNS]; !ok {
 			defaultNamespaceList[submodNS] = struct{}{}
-			fmt.Printf(" - %s\n", submod.Identifier())
 		}
 	}
 	return defaultNamespaceList
