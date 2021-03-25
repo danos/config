@@ -13,10 +13,11 @@ import (
 	"strings"
 	"time"
 
+	spawn "os/exec"
+
 	"github.com/danos/mgmterror"
 	"github.com/danos/utils/pathutil"
 	yang "github.com/danos/yang/schema"
-	spawn "os/exec"
 )
 
 type StateLogger interface {
@@ -187,7 +188,7 @@ func (s *state) GetStateJsonWithWarnings(
 		allJsonState = append(allJsonState, jsonState)
 	}
 	if count > 0 {
-		logTimeTaken(logger, fmt.Sprintf("%v %d script(s)", path, count),
+		logStateTime(logger, fmt.Sprintf("%v %d script(s)", path, count),
 			start)
 	}
 	return allJsonState, warnings
@@ -209,10 +210,17 @@ func msgPad(msg string) string {
 	return msg + ": " + msgPadding[:padLen]
 }
 
-func logTimeTaken(logger StateLogger, msg string, startTime time.Time) {
+func logStateTime(logger StateLogger, msg string, startTime time.Time) {
 	if logger == nil {
 		return
 	}
 	logger.Printf("%s: %s%s", stateLogMsgPrefix, msgPad(msg),
 		time.Since(startTime).Round(time.Millisecond))
+}
+
+func logStateEvent(logger StateLogger, msg string) {
+	if logger == nil {
+		return
+	}
+	logger.Printf("%s: %s", stateLogMsgPrefix, msg)
 }

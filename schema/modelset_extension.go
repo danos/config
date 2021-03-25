@@ -13,8 +13,10 @@ import (
 	"time"
 
 	"github.com/danos/config/data"
+	rfc7951data "github.com/danos/encoding/rfc7951/data"
 	"github.com/danos/mgmterror"
 	"github.com/danos/utils/exec"
+	"github.com/danos/vci"
 	"github.com/danos/vci/services"
 	"github.com/danos/yang/data/datanode"
 	"github.com/danos/yang/data/encoding"
@@ -42,7 +44,12 @@ type ModelSet interface {
 		*map[string]bool,
 		commitTimeLogFn,
 	) []*exec.Output
-	ServiceGetRunning(ConfigMultiplexerFn) (*data.Node, error)
+	ServiceGetRunning(
+		ConfigMultiplexerFn) (*data.Node, error)
+	ServiceGetState(
+		datanode.DataNode,
+		*rfc7951data.Tree,
+		StateLogger) (*rfc7951data.Tree, error)
 	GetModelNameForNamespace(string) (string, bool)
 	GetDefaultServiceModuleMap() map[string]struct{}
 }
@@ -432,4 +439,39 @@ func (m *modelSet) ServiceGetRunning(cfgMuxFn ConfigMultiplexerFn,
 	}
 
 	return cfgMuxFn(configs, m)
+}
+
+func (m *modelSet) ServiceGetState(
+	dn datanode.DataNode,
+	ft *rfc7951data.Tree,
+	logger StateLogger,
+) (*rfc7951data.Tree, error) {
+
+	allState := NewRFC7951Merger(m, ft)
+
+	client, vciErr := vci.Dial()
+	if vciErr == nil {
+		defer client.Close()
+
+		for _, model := range m.ListActiveModels(dn) {
+			compStartTime := time.Now()
+
+			state := rfc7951data.TreeNew()
+			err := client.StoreStateByModelInto(model, state)
+			if err != nil {
+				// No error if component doesn't implement state.
+				_, ok := err.(*mgmterror.OperationNotSupportedApplicationError)
+				if ok {
+					logStateEvent(logger, fmt.Sprintf("%s no state fn", model))
+					continue
+				}
+				logStateEvent(logger, fmt.Sprintf("%s store fail: %s", model, err))
+				continue
+			}
+			allState.Merge(state)
+			logStateTime(logger, fmt.Sprintf("  %s", model), compStartTime)
+		}
+	}
+
+	return allState.Tree(), nil
 }
