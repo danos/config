@@ -447,7 +447,7 @@ func (m *modelSet) ServiceGetState(
 	logger StateLogger,
 ) (*rfc7951data.Tree, error) {
 
-	allState := NewRFC7951Merger(m, ft)
+	allState := newRFC7951Merger(m, ft)
 
 	client, vciErr := vci.Dial()
 	if vciErr == nil {
@@ -468,10 +468,10 @@ func (m *modelSet) ServiceGetState(
 				logStateEvent(logger, fmt.Sprintf("%s store fail: %s", model, err))
 				continue
 			}
-			allState.Merge(state)
+			allState.merge(state)
 			logStateTime(logger, fmt.Sprintf("  %s", model), compStartTime)
 		}
 	}
 
-	return allState.Tree(), nil
+	return allState.getTree(), nil
 }

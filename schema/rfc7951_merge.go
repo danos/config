@@ -1,4 +1,4 @@
-// Copyright (c) 2020, AT&T Intellectual Property. All rights reserved.
+// Copyright (c) 2020, 2021, AT&T Intellectual Property. All rights reserved.
 //
 // SPDX-License-Identifier: MPL-2.0
 
@@ -16,24 +16,24 @@ type rfc7951Merger struct {
 	tree   *data.Tree
 }
 
-func NewRFC7951Merger(sch schema.ModelSet, tree *data.Tree) *rfc7951Merger {
+func newRFC7951Merger(sch schema.ModelSet, tree *data.Tree) *rfc7951Merger {
 	return &rfc7951Merger{
 		schema: sch,
 		tree:   tree,
 	}
 }
 
-func (m *rfc7951Merger) Tree() *data.Tree {
+func (m *rfc7951Merger) getTree() *data.Tree {
 	return m.tree
 }
 
-func (m *rfc7951Merger) Merge(other *data.Tree) {
+func (m *rfc7951Merger) merge(other *data.Tree) {
 	m.tree = data.TreeFromObject(
-		m.merge(m.schema, m.tree.Root(), other.Root()).
+		m.mergeInternal(m.schema, m.tree.Root(), other.Root()).
 			AsObject())
 }
 
-func (m *rfc7951Merger) merge(
+func (m *rfc7951Merger) mergeInternal(
 	sn schema.Node,
 	this, new *data.Value,
 ) *data.Value {
@@ -61,7 +61,7 @@ func (m *rfc7951Merger) mergeObject(
 				if n.Contains(key) {
 					sChild := sn.Child(m.parseKey(key))
 					out = out.Assoc(key,
-						m.merge(sChild,
+						m.mergeInternal(sChild,
 							val, n.At(key)))
 				}
 			})
@@ -93,7 +93,7 @@ func (m *rfc7951Merger) mergeArray(
 			arr.Range(func(i int, v *data.Value) {
 				if n.Contains(i) {
 					out = out.Assoc(i,
-						m.merge(sn, v, n.At(i)))
+						m.mergeInternal(sn, v, n.At(i)))
 				}
 			})
 			n.Range(func(i int, v *data.Value) {
@@ -130,7 +130,7 @@ func (m *rfc7951Merger) mergeArrayByKey(
 				sChild := list.Child(k)
 				if ok {
 					out = out.Assoc(i,
-						m.merge(sChild, val, n.At(new)))
+						m.mergeInternal(sChild, val, n.At(new)))
 				}
 			}
 			for k, i := range newEntries {

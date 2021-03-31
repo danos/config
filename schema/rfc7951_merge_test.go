@@ -2,17 +2,16 @@
 //
 // SPDX-License-Identifier: MPL-2.0
 
-package schema_test
+package schema
 
 import (
-	"bytes"
-	"fmt"
+	"os"
 	"testing"
 
-	"github.com/danos/config/schema"
-	"github.com/danos/config/testutils"
 	"github.com/danos/encoding/rfc7951/data"
+	"github.com/danos/yang/compile"
 	yang "github.com/danos/yang/schema"
+	"github.com/danos/yang/testutils"
 )
 
 const rfc7951SchemaTemplate = `
@@ -34,13 +33,23 @@ module test-merge {
 
 func makeSchema(
 	t *testing.T,
-	schema string,
-) (yang.ModelSet, yang.ModelSet, error) {
-	sch := bytes.NewBufferString(fmt.Sprintf(rfc7951SchemaTemplate, schema))
+	testSchema string,
+) (yang.ModelSet, error) {
 
-	return testutils.NewModelSetSpec(t).
-		SetSchemas(sch.Bytes()).
-		GenerateModelSets()
+	schemas := []*testutils.TestSchema{
+		testutils.NewTestSchema("vyatta-test-rfc7951-v1", "rfc7951").
+			AddSchemaSnippet(testSchema),
+	}
+	tmpYangDir := createYangDir(t, "checkRFC7951Merge", schemas)
+	defer os.RemoveAll(tmpYangDir)
+
+	return CompileDir(
+		&compile.Config{
+			YangDir:      tmpYangDir,
+			CapsLocation: "",
+			Filter:       compile.IsConfigOrState()},
+		&CompilationExtensions{},
+	)
 }
 
 func TestRFC7951Merge(t *testing.T) {
@@ -60,10 +69,11 @@ container testcontainer {
         }
 }
 `
-	_, msFull, err := makeSchema(t, testSchema)
+	msFull, err := makeSchema(t, testSchema)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	array1 := data.ArrayWith(
 		data.ObjectWith(
 			data.PairNew("nodetag", "foo"),
@@ -97,9 +107,9 @@ container testcontainer {
 			data.PairNew("test-merge:testcontainer",
 				data.ObjectWith(
 					data.PairNew("testlist", array2)))))
-	mrgr := schema.NewRFC7951Merger(msFull, tree1)
-	mrgr.Merge(tree2)
-	out := mrgr.Tree()
+	mrgr := newRFC7951Merger(msFull, tree1)
+	mrgr.merge(tree2)
+	out := mrgr.getTree()
 	leaf := out.At("/test-merge:testcontainer/testlist[nodetag='bar']/cont/testleaf")
 	if leaf.String() != "quux" {
 		t.Fatal("merge failed to update required element")
