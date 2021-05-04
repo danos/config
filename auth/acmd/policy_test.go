@@ -112,16 +112,12 @@ const expect = `<!DOCTYPE busconfig PUBLIC
   "http://www.freedesktop.org/standards/dbus/1.0/busconfig.dtd">
  <busconfig>
     <policy context="default">
-       <allow send_type="method_call"></allow>
        <allow receive_type="signal"></allow>
     </policy>
     <policy group="vyattaop">
        <allow receive_interface="yang.module.VyattaOpV1.Notification"></allow>
        <allow receive_interface="yang.module.VyattaIfmgrV1.Notification" receive_member="InterfaceState"></allow>
        <deny receive_type="signal" receive_interface="*"></deny>
-       <allow send_interface="yang.module.VyattaOpV1.RPC"></allow>
-       <allow send_interface="yang.module.VyattaOpV1.RPC" send_member="Ping"></allow>
-       <deny send_type="method_call" send_interface="*"></deny>
     </policy>
  </busconfig>`
 

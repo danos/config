@@ -50,34 +50,6 @@ func (r *Rule) receiveSignal() *Rule {
 	return r
 }
 
-// D-Bus policy that applies to a single RPC
-func (r *Rule) singleRpc(rpc string) *Rule {
-	rpcparts := strings.Split(rpc, ":")
-	if len(rpcparts) < 2 {
-		return r
-	}
-	iface := convertYangNameToDBus(rpcparts[0])
-	r.RuleAttributes.SendInterface = "yang.module." + iface + ".RPC"
-	r.RuleAttributes.SendMember = convertYangNameToDBus(rpcparts[1])
-	return r
-}
-
-// A D-Bus policy that applies to all RPCs defined in a module
-// Specifying module as "*", the rule will apply to all RPCs
-// in all modules
-func (r *Rule) allRpcs(module string) *Rule {
-	if module == "*" {
-		r.SendType = "method_call"
-		r.SendInterface = module
-		return r
-	}
-	iface := bytes.NewBufferString("yang.module.")
-	iface.WriteString(convertYangNameToDBus(module))
-	iface.WriteString(".RPC")
-	r.SendInterface = iface.String()
-	return r
-}
-
 // A D-Bus policy that applies to all notification defined in a module
 // Specifying module as "*", the rule will apply to all Notifications
 // in all modules
@@ -127,11 +99,10 @@ func newPolicy() *Policy {
 	return &Policy{}
 }
 
-// A D-Bus policy that is applies the RPC and Notification default actions
-func (p *Policy) Defaults(rpc, notification string) *Policy {
+// A D-Bus policy that is applies the Notification default actions
+func (p *Policy) Defaults(notification string) *Policy {
 	p.Context = "default"
 	rules := make([]*Rule, 0)
-	rules = append(rules, newRule().action(rpc).methodcallType())
 	rules = append(rules, newRule().action(notification).receiveSignal())
 	p.Rules = rules
 	return p
@@ -155,7 +126,7 @@ func newBusconfig(policies []*Policy) *Busconfig {
 	return &Busconfig{Policies: policies}
 }
 
-// Translate the rpc-ruleset and notification-rulset
+// Translate the notification-rulset
 // into a set of D-Bus policies rules.
 //
 // The policy rules need to be in a per GroupId policy ruleset.
@@ -172,32 +143,10 @@ func (a *AcmV1Config) translateToPolicy() ([]byte, error) {
 
 	if !a.Enable {
 		// ACM is disabled, Write a policy that allows
-		// All Notifications and RPCs
-		policies = append(policies, newPolicy().Defaults("allow", "allow"))
+		// All Notifications
+		policies = append(policies, newPolicy().Defaults("allow"))
 
 		return marshalDbusPolicy(newBusconfig(policies))
-	}
-	// Translate RPC rules
-	for _, r := range a.RpcRuleset.Rule {
-		rl = newRule().action(r.Action.String())
-		if r.Rpc != nil && *r.Rpc != "*" {
-			rl = rl.singleRpc(*r.Rpc)
-		} else {
-			rl = rl.allRpcs(r.Module)
-		}
-		// Add RPC rule to each policy group
-		for _, g := range r.Groups {
-			if _, ok := grps[g]; ok {
-
-				// Add the new rule to the start of the list
-				grps[g] = append([]*Rule{rl}, grps[g]...)
-			} else {
-				rls := make([]*Rule, 0)
-				// Add the new rule to the start of the list
-				rls = append([]*Rule{rl}, rls...)
-				grps[g] = rls
-			}
-		}
 	}
 
 	// Translate Notification rules
@@ -221,9 +170,9 @@ func (a *AcmV1Config) translateToPolicy() ([]byte, error) {
 		}
 	}
 
-	// Create policy rule for rpc and notification default actions
+	// Create policy rule for notification default actions
 	// These should be ordered before other policy rules
-	policies = append(policies, newPolicy().Defaults(a.RpcDefault.String(), a.NotificationDefault.String()))
+	policies = append(policies, newPolicy().Defaults(a.NotificationDefault.String()))
 
 	// Create each policy ruleset, one per GroupId
 	for g, rs := range grps {
