@@ -9,6 +9,12 @@
 
 package schema
 
+import (
+	"github.com/danos/yang/data/datanode"
+	"github.com/danos/yang/data/encoding"
+	yang "github.com/danos/yang/schema"
+)
+
 type OperationsManager interface {
 	Dial() error
 	SetConfigForModel(string, interface{}) error
@@ -20,6 +26,37 @@ type OperationsManager interface {
 type ServiceManager interface {
 	CloseSvcMgr()
 	IsActive(name string) (bool, error)
+}
+
+type componentMappings struct {
+	components        map[string]*component
+	nsMap             map[string]string
+	orderedComponents []string
+	defaultComponent  string
+}
+
+type component struct {
+	name      string
+	modMap    map[string]struct{}
+	setFilter func(s yang.Node, d datanode.DataNode,
+		children []datanode.DataNode) bool
+	checkMap    map[string]struct{}
+	checkFilter func(s yang.Node, d datanode.DataNode,
+		children []datanode.DataNode) bool
+}
+
+func (c *component) FilterSetTree(n Node, dn datanode.DataNode) []byte {
+	filteredCandidate := yang.FilterTree(n, dn, c.setFilter)
+	return encoding.ToRFC7951(n, filteredCandidate)
+}
+
+func (c *component) FilterCheckTree(n Node, dn datanode.DataNode) []byte {
+	filteredCandidate := yang.FilterTree(n, dn, c.checkFilter)
+	return encoding.ToRFC7951(n, filteredCandidate)
+}
+
+func (c *component) HasConfiguration(n Node, dn datanode.DataNode) bool {
+	return string(c.FilterSetTree(n, dn)) != "{}"
 }
 
 // ComponentManager encapsulates bus operations to/from components, and service

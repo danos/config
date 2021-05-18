@@ -364,9 +364,9 @@ func TestSingleDefaultComponentDetected(t *testing.T) {
 	}
 
 	expDefSvcName := "net.vyatta.test.default"
-	if ms.defaultComponent != expDefSvcName {
+	if ms.compMappings.defaultComponent != expDefSvcName {
 		t.Fatalf("Exp component name: %s\nAct component name: %s\n",
-			expDefSvcName, ms.defaultComponent)
+			expDefSvcName, ms.compMappings.defaultComponent)
 	}
 }
 

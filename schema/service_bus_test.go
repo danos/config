@@ -90,7 +90,7 @@ func TestYangdServiceBus(t *testing.T) {
 		t.Fatalf("Unexpected compilation failure:\n  %s\n\n", err.Error())
 	}
 
-	busMap := ms.(*modelSet).components
+	busMap := ms.(*modelSet).compMappings.components
 	if len(busMap) != 1 {
 		t.Fatalf("Unexpected number of buses found: %d\n", len(busMap))
 	}

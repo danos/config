@@ -263,7 +263,8 @@ func getTestComponentMap(t *testing.T, yangDir string, dotCompFiles ...string,
 	if err != nil {
 		t.Fatalf("Unexpected compilation failure:\n  %s\n\n", err.Error())
 	}
-	return ms.(*modelSet).components, ms.(*modelSet).orderedComponents
+	return ms.(*modelSet).compMappings.components,
+		ms.(*modelSet).compMappings.orderedComponents
 }
 
 func getModelSet(t *testing.T, yangDir string, dotCompFiles ...string,
@@ -364,7 +365,7 @@ func checkServiceValidation(
 	expCfgSnippets []string,
 	unexpCfgSnippets []string,
 ) {
-	svc := extMs.components[svcName]
+	svc := extMs.compMappings.components[svcName]
 	if svc == nil {
 		t.Fatalf("Unable to find component %s\n", svcName)
 		return
@@ -395,7 +396,7 @@ func checkSetRunning(
 	expCfgSnippets []string,
 	unexpCfgSnippets []string,
 ) {
-	svc := extMs.components[svcName]
+	svc := extMs.compMappings.components[svcName]
 	if svc == nil {
 		t.Fatalf("Unable to find component %s\n", svcName)
 		return

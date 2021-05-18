@@ -18,7 +18,6 @@ import (
 	"github.com/danos/mgmterror"
 	"github.com/danos/utils/exec"
 	"github.com/danos/yang/data/datanode"
-	"github.com/danos/yang/data/encoding"
 	yang "github.com/danos/yang/schema"
 	"github.com/godbus/dbus"
 )
@@ -67,38 +66,11 @@ type ModelSet interface {
 	GetDefaultComponentModuleMap() map[string]struct{}
 }
 
-type component struct {
-	name      string
-	modMap    map[string]struct{}
-	setFilter func(s yang.Node, d datanode.DataNode,
-		children []datanode.DataNode) bool
-	checkMap    map[string]struct{}
-	checkFilter func(s yang.Node, d datanode.DataNode,
-		children []datanode.DataNode) bool
-}
-
-func (c *component) FilterSetTree(n Node, dn datanode.DataNode) []byte {
-	filteredCandidate := yang.FilterTree(n, dn, c.setFilter)
-	return encoding.ToRFC7951(n, filteredCandidate)
-}
-
-func (c *component) FilterCheckTree(n Node, dn datanode.DataNode) []byte {
-	filteredCandidate := yang.FilterTree(n, dn, c.checkFilter)
-	return encoding.ToRFC7951(n, filteredCandidate)
-}
-
-func (c *component) HasConfiguration(n Node, dn datanode.DataNode) bool {
-	return string(c.FilterSetTree(n, dn)) != "{}"
-}
-
 type modelSet struct {
 	yang.ModelSet
 	*extensions
 	*state
-	components        map[string]*component
-	nsMap             map[string]string
-	orderedComponents []string
-	defaultComponent  string
+	compMappings *componentMappings
 }
 
 // Compile time check that the concrete type meets the interface
@@ -141,10 +113,17 @@ func (c *CompilationExtensions) ExtendModelSet(
 			len(orderedComponents), len(componentMap))
 	}
 
+	compMappings := &componentMappings{
+		components:        componentMap,
+		nsMap:             globalNSMap,
+		orderedComponents: orderedComponents,
+		defaultComponent:  defaultComponent,
+	}
+
 	ext := newExtend(nil)
 	return &modelSet{
 			m, ext, newState(m, ext),
-			componentMap, globalNSMap, orderedComponents, defaultComponent},
+			compMappings},
 		err
 }
 
@@ -170,8 +149,8 @@ func (m *modelSet) ListActiveModels(
 
 	out := make([]string, 0)
 
-	for _, modelName := range m.orderedComponents {
-		comp := m.components[modelName]
+	for _, modelName := range m.compMappings.orderedComponents {
+		comp := m.compMappings.components[modelName]
 		active, err := compMgr.IsActive(comp.name)
 		if err != nil {
 			log(err.Error())
@@ -193,8 +172,8 @@ func (m *modelSet) ListActiveOrConfiguredModels(
 ) []string {
 
 	out := make([]string, 0)
-	for _, modelName := range m.orderedComponents {
-		comp := m.components[modelName]
+	for _, modelName := range m.compMappings.orderedComponents {
+		comp := m.compMappings.components[modelName]
 
 		active, err := compMgr.IsActive(comp.name)
 		if err != nil {
@@ -231,7 +210,7 @@ func (m *modelSet) ServiceValidation(
 		compMgr, dn) {
 		startTime := time.Now()
 
-		svc := m.components[modelName]
+		svc := m.compMappings.components[modelName]
 		jsonTree := svc.FilterCheckTree(m, dn)
 
 		err := compMgr.CheckConfigForModel(modelName, string(jsonTree))
@@ -246,7 +225,7 @@ func (m *modelSet) ServiceValidation(
 }
 
 func (m *modelSet) GetModelNameForNamespace(ns string) (string, bool) {
-	for svcName, svc := range m.components {
+	for svcName, svc := range m.compMappings.components {
 		if _, ok := svc.modMap[ns]; ok {
 			return svcName, true
 		}
@@ -255,7 +234,7 @@ func (m *modelSet) GetModelNameForNamespace(ns string) (string, bool) {
 }
 
 func (m *modelSet) GetDefaultComponentModuleMap() map[string]struct{} {
-	return m.components[m.defaultComponent].modMap
+	return m.compMappings.components[m.compMappings.defaultComponent].modMap
 }
 
 func log(output string) {
@@ -296,12 +275,12 @@ func (m *modelSet) ServiceSetRunningWithLog(
 	if changedNSMap != nil {
 		changedComps = make(map[string]bool, 0)
 		for ns, _ := range *changedNSMap {
-			changedComps[m.nsMap[ns]] = true
+			changedComps[m.compMappings.nsMap[ns]] = true
 		}
-		changedComps[m.defaultComponent] = true
+		changedComps[m.compMappings.defaultComponent] = true
 	}
 
-	for _, ordComp := range m.orderedComponents {
+	for _, ordComp := range m.compMappings.orderedComponents {
 		if changedComps != nil {
 			if _, ok := changedComps[ordComp]; !ok {
 				log(fmt.Sprintf("\t'%s' hasn't changed.\n", ordComp))
@@ -309,7 +288,7 @@ func (m *modelSet) ServiceSetRunningWithLog(
 			}
 		}
 		startTime := time.Now()
-		comp, ok := m.components[ordComp]
+		comp, ok := m.compMappings.components[ordComp]
 		if !ok {
 			log(fmt.Sprintf("Unable to set running config for '%s' component.\n",
 				ordComp))
@@ -345,9 +324,9 @@ func (m *modelSet) ServiceGetRunning(
 		return nil, err
 	}
 
-	var configs = make([][]byte, 0, len(m.components))
+	var configs = make([][]byte, 0, len(m.compMappings.components))
 
-	for _, comp := range m.components {
+	for _, comp := range m.compMappings.components {
 		// Build up JSON config, then decode ...
 		var jsonInput string
 		err := compMgr.StoreConfigByModelInto(
