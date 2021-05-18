@@ -52,8 +52,8 @@ func getModelToNamespaceMapsForModelSet(
 // createNSMapForModelSetFromComponents - create the 2 required maps
 //
 // This function generates the model-to-namespace map that is used to
-// map incoming service requests (state, config, notifications, RPCs) to
-// the relevant service / component.  It can be quite hard to visualise how
+// map incoming requests (state, config, notifications, RPCs) to
+// the relevant component.  It can be quite hard to visualise how
 // this map might look, so the following worked example should help.
 //
 // Let's say we have 3 components - CompA, CompB, and CompC - with the following
@@ -316,17 +316,17 @@ func createDefaultNamespaceList(
 	return defaultNamespaceList
 }
 
-// For a specific modelset, provide a map of service objects, one per model,
+// For a specific modelset, provide a map of component objects, one per model,
 // that contain:
 //
-// - a map of namespaces the service covers
-// - a function to check if a given YANG node belongs to this service.
+// - a map of namespaces the component covers
+// - a function to check if a given YANG node belongs to this component.
 //
-func getServiceMap(
+func getComponentMap(
 	modelToNSMap modelToNamespaceMap,
-) map[string]*service {
+) map[string]*component {
 
-	service_map := make(map[string]*service, len(modelToNSMap))
+	componentMap := make(map[string]*component, len(modelToNSMap))
 
 	for name, modMap := range modelToNSMap {
 		setMap := modMap.setMap // Avoid 'closure pitfall'
@@ -355,7 +355,7 @@ func getServiceMap(
 			_, ok := checkMap[filter]
 			return ok
 		}
-		service_map[name] = &service{
+		componentMap[name] = &component{
 			name:        name,
 			modMap:      modMap.setMap,
 			setFilter:   setFilter,
@@ -363,7 +363,7 @@ func getServiceMap(
 			checkFilter: checkFilter,
 		}
 	}
-	return service_map
+	return componentMap
 }
 
 func removeServiceSuffix(name string) string {
@@ -373,9 +373,9 @@ func removeServiceSuffix(name string) string {
 	return name
 }
 
-func getOrderedServicesList(
+func getOrderedComponentsList(
 	modelSetName string,
-	defaultService string,
+	defaultComponent string,
 	comps []*conf.ServiceConfig,
 ) ([]string, error) {
 
@@ -405,12 +405,12 @@ func getOrderedServicesList(
 		}
 	}
 
-	orderedServices, err := g.Sort()
+	orderedComponents, err := g.Sort()
 	if err != nil {
-		return nil, fmt.Errorf("Unable to order services.")
+		return nil, fmt.Errorf("Unable to order components.")
 	}
 
-	for _, name := range orderedServices {
+	for _, name := range orderedComponents {
 		if modelName, ok := compNameToModelName[name]; ok {
 			orderedList = append(orderedList, modelName)
 		}

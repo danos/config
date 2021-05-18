@@ -84,35 +84,35 @@ ModelSets=vyatta-v1,open-v1`
 const NsPfx = "urn:vyatta.com:test:"
 
 func TestMultipleComponentRegistration(t *testing.T) {
-	serviceMap, _ := getTestServiceMap(t, "testdata/yang",
+	componentMap, _ := getTestComponentMap(t, "testdata/yang",
 		firstComp,
 		secondComp,
 		thirdComp,
 		fourthComp)
 
-	checkNumberOfServices(t, serviceMap, 4)
+	checkNumberOfComponents(t, componentMap, 4)
 
-	checkServiceNamespaces(t, serviceMap,
+	checkComponentNamespaces(t, componentMap,
 		"net.vyatta.test.first",
 		[]string{NsPfx + "vyatta-test-first:1"},
 		[]string{})
 
-	checkServiceNamespaces(t, serviceMap,
+	checkComponentNamespaces(t, componentMap,
 		"net.vyatta.test.second",
 		[]string{NsPfx + "vyatta-test-second-a:1",
 			NsPfx + "vyatta-test-second-b:1"},
 		[]string{})
 
-	checkServiceNamespaces(t, serviceMap,
+	checkComponentNamespaces(t, componentMap,
 		"net.vyatta.test.third.a",
 		[]string{},
 		[]string{})
-	checkServiceNamespaces(t, serviceMap,
+	checkComponentNamespaces(t, componentMap,
 		"net.vyatta.test.third.b",
 		[]string{NsPfx + "vyatta-test-third-b:1"},
 		[]string{})
 
-	checkServiceNamespaces(t, serviceMap,
+	checkComponentNamespaces(t, componentMap,
 		"net.vyatta.test.fourth",
 		[]string{NsPfx + "vyatta-test-fourth:1"},
 		[]string{})
@@ -210,48 +210,48 @@ After=net.vyatta.test.first
 Modules=vyatta-test-fourth-v1
 ModelSets=vyatta-v1`
 
-func TestServiceOrdering(t *testing.T) {
-	svcs, orderedSvcs := getTestServiceMap(t, "testdata/yang",
+func TestComponentOrdering(t *testing.T) {
+	svcs, orderedSvcs := getTestComponentMap(t, "testdata/yang",
 		orderSecondBComp,
 		orderFourthComp,
 		orderSecondAComp,
 		orderFirstComp,
 		orderThirdComp)
 
-	checkOrderedService(t, "net.vyatta.test.first", 1, 1,
+	checkOrderedComponent(t, "net.vyatta.test.first", 1, 1,
 		orderedSvcs, svcs)
-	checkOrderedService(t, "net.vyatta.test.second-a", 2, 3,
+	checkOrderedComponent(t, "net.vyatta.test.second-a", 2, 3,
 		orderedSvcs, svcs)
-	checkOrderedService(t, "net.vyatta.test.second-b", 2, 3,
+	checkOrderedComponent(t, "net.vyatta.test.second-b", 2, 3,
 		orderedSvcs, svcs)
-	checkOrderedService(t, "net.vyatta.test.third-b", 4, 4,
+	checkOrderedComponent(t, "net.vyatta.test.third-b", 4, 4,
 		orderedSvcs, svcs)
-	checkOrderedService(t, "net.vyatta.test.fourth", 5, 5,
+	checkOrderedComponent(t, "net.vyatta.test.fourth", 5, 5,
 		orderedSvcs, svcs)
 }
 
-func checkOrderedService(
+func checkOrderedComponent(
 	t *testing.T,
 	name string,
 	earliest_1_indexed, latest_1_indexed int,
 	orderedSvcs []string,
-	serviceMap map[string]*service,
+	componentMap map[string]*component,
 ) {
 	for pos, svc := range orderedSvcs {
 		if svc == name {
 			if earliest_1_indexed > (pos + 1) {
-				t.Fatalf("Service %s too early in list", name)
+				t.Fatalf("Component %s too early in list", name)
 			}
 			if latest_1_indexed < (pos + 1) {
-				t.Fatalf("Service %s too late in list", name)
+				t.Fatalf("Component %s too late in list", name)
 			}
-			if _, ok := serviceMap[name]; !ok {
-				t.Fatalf("Service %s not found in service map", name)
+			if _, ok := componentMap[name]; !ok {
+				t.Fatalf("Component %s not found in component map", name)
 			}
 			return
 		}
 	}
-	t.Fatalf("Service %s not found in ordered service list!", name)
+	t.Fatalf("Component %s not found in ordered component list!", name)
 }
 
 const otherFirstSharingSameModuleComp = `[Vyatta Component]
@@ -364,9 +364,9 @@ func TestSingleDefaultComponentDetected(t *testing.T) {
 	}
 
 	expDefSvcName := "net.vyatta.test.default"
-	if ms.defaultService != expDefSvcName {
-		t.Fatalf("Exp service name: %s\nAct service name: %s\n",
-			expDefSvcName, ms.defaultService)
+	if ms.defaultComponent != expDefSvcName {
+		t.Fatalf("Exp component name: %s\nAct component name: %s\n",
+			expDefSvcName, ms.defaultComponent)
 	}
 }
 
@@ -403,14 +403,14 @@ func TestDefaultComponentWithModulesDetected(t *testing.T) {
 }
 
 func TestUnassignedNamespacesAssignedToDefaultComponent(t *testing.T) {
-	serviceMap, _ := getTestServiceMap(t, "testdata/unassigned_yang",
+	componentMap, _ := getTestComponentMap(t, "testdata/unassigned_yang",
 		firstCompForUnassignedTest,
 		secondCompForUnassignedTest,
 		defaultCompForUnassignedTest)
 
-	checkNumberOfServices(t, serviceMap, 3)
+	checkNumberOfComponents(t, componentMap, 3)
 
-	checkServiceNamespaces(t, serviceMap,
+	checkComponentNamespaces(t, componentMap,
 		"net.vyatta.test.default",
 		[]string{
 			NsPfx + "vyatta-test-unassigned-a:1",
@@ -458,11 +458,11 @@ func TestImportsRequiredForCheck(t *testing.T) {
 	tmpYangDir := createYangDir(t, "checkTest", schemas)
 	defer os.RemoveAll(tmpYangDir)
 
-	serviceMap, _ := getTestServiceMap(t, tmpYangDir, vciComp.String())
+	componentMap, _ := getTestComponentMap(t, tmpYangDir, vciComp.String())
 
-	checkNumberOfServices(t, serviceMap, 1)
+	checkNumberOfComponents(t, componentMap, 1)
 
-	checkServiceNamespaces(t, serviceMap,
+	checkComponentNamespaces(t, componentMap,
 		"net.vyatta.vci.test.test-check",
 		[]string{NsPfx + "vyatta-test-check-v1"},
 		[]string{NsPfx + "vyatta-required-for-check-v1"})

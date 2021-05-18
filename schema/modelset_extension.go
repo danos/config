@@ -64,10 +64,10 @@ type ModelSet interface {
 		*rfc7951data.Tree,
 		StateLogger) (*rfc7951data.Tree, error)
 	GetModelNameForNamespace(string) (string, bool)
-	GetDefaultServiceModuleMap() map[string]struct{}
+	GetDefaultComponentModuleMap() map[string]struct{}
 }
 
-type service struct {
+type component struct {
 	name      string
 	modMap    map[string]struct{}
 	setFilter func(s yang.Node, d datanode.DataNode,
@@ -77,34 +77,34 @@ type service struct {
 		children []datanode.DataNode) bool
 }
 
-func (s *service) FilterSetTree(n Node, dn datanode.DataNode) []byte {
-	filteredCandidate := yang.FilterTree(n, dn, s.setFilter)
+func (c *component) FilterSetTree(n Node, dn datanode.DataNode) []byte {
+	filteredCandidate := yang.FilterTree(n, dn, c.setFilter)
 	return encoding.ToRFC7951(n, filteredCandidate)
 }
 
-func (s *service) FilterCheckTree(n Node, dn datanode.DataNode) []byte {
-	filteredCandidate := yang.FilterTree(n, dn, s.checkFilter)
+func (c *component) FilterCheckTree(n Node, dn datanode.DataNode) []byte {
+	filteredCandidate := yang.FilterTree(n, dn, c.checkFilter)
 	return encoding.ToRFC7951(n, filteredCandidate)
 }
 
-func (s *service) HasConfiguration(n Node, dn datanode.DataNode) bool {
-	return string(s.FilterSetTree(n, dn)) != "{}"
+func (c *component) HasConfiguration(n Node, dn datanode.DataNode) bool {
+	return string(c.FilterSetTree(n, dn)) != "{}"
 }
 
 type modelSet struct {
 	yang.ModelSet
 	*extensions
 	*state
-	services        map[string]*service
-	nsMap           map[string]string
-	orderedServices []string
-	defaultService  string
+	components        map[string]*component
+	nsMap             map[string]string
+	orderedComponents []string
+	defaultComponent  string
 }
 
 // Compile time check that the concrete type meets the interface
 var _ ModelSet = (*modelSet)(nil)
 
-type namespaceToService func(string) *service
+type namespaceToComponent func(string) *component
 
 // For now there is an implicit assumption that we are only dealing with the
 // single 'vyatta-v1' model set.  As and when we support multiple model sets
@@ -118,33 +118,33 @@ func (c *CompilationExtensions) ExtendModelSet(
 	m yang.ModelSet,
 ) (yang.ModelSet, error) {
 
-	modelToNamespaceMap, globalNSMap, defaultModel, err :=
+	modelToNamespaceMap, globalNSMap, defaultComponent, err :=
 		getModelToNamespaceMapsForModelSet(
 			m, VyattaV1ModelSet, c.ComponentConfig)
 	if err != nil {
 		return nil, err
 	}
-	var service_map map[string]*service
+	var componentMap map[string]*component
 
-	service_map = getServiceMap(modelToNamespaceMap)
+	componentMap = getComponentMap(modelToNamespaceMap)
 
-	orderedServices, err := getOrderedServicesList(
-		VyattaV1ModelSet, defaultModel, c.ComponentConfig)
+	orderedComponents, err := getOrderedComponentsList(
+		VyattaV1ModelSet, defaultComponent, c.ComponentConfig)
 	if err != nil {
 		return nil, err
 	}
 
-	if len(service_map) != len(orderedServices) {
+	if len(componentMap) != len(orderedComponents) {
 		return nil, fmt.Errorf(
 			"Mismatch between number of ordered (%d) "+
-				"and unordered (%d) services.",
-			len(orderedServices), len(service_map))
+				"and unordered (%d) components.",
+			len(orderedComponents), len(componentMap))
 	}
 
 	ext := newExtend(nil)
 	return &modelSet{
 			m, ext, newState(m, ext),
-			service_map, globalNSMap, orderedServices, defaultModel},
+			componentMap, globalNSMap, orderedComponents, defaultComponent},
 		err
 }
 
@@ -170,9 +170,9 @@ func (m *modelSet) ListActiveModels(
 
 	out := make([]string, 0)
 
-	for _, modelName := range m.orderedServices {
-		svc := m.services[modelName]
-		active, err := compMgr.IsActive(svc.name)
+	for _, modelName := range m.orderedComponents {
+		comp := m.components[modelName]
+		active, err := compMgr.IsActive(comp.name)
 		if err != nil {
 			log(err.Error())
 		}
@@ -193,10 +193,10 @@ func (m *modelSet) ListActiveOrConfiguredModels(
 ) []string {
 
 	out := make([]string, 0)
-	for _, modelName := range m.orderedServices {
-		svc := m.services[modelName]
+	for _, modelName := range m.orderedComponents {
+		comp := m.components[modelName]
 
-		active, err := compMgr.IsActive(svc.name)
+		active, err := compMgr.IsActive(comp.name)
 		if err != nil {
 			log(err.Error())
 		}
@@ -208,7 +208,7 @@ func (m *modelSet) ListActiveOrConfiguredModels(
 		//     A future enhancement would be to do a single pass to extract
 		//     all active namespaces as we only need to know if a service is
 		//     configured or not.  Actual config is irrelevant.
-		if active || svc.HasConfiguration(m, config) {
+		if active || comp.HasConfiguration(m, config) {
 			out = append(out, modelName)
 		}
 	}
@@ -231,7 +231,7 @@ func (m *modelSet) ServiceValidation(
 		compMgr, dn) {
 		startTime := time.Now()
 
-		svc := m.services[modelName]
+		svc := m.components[modelName]
 		jsonTree := svc.FilterCheckTree(m, dn)
 
 		err := compMgr.CheckConfigForModel(modelName, string(jsonTree))
@@ -246,7 +246,7 @@ func (m *modelSet) ServiceValidation(
 }
 
 func (m *modelSet) GetModelNameForNamespace(ns string) (string, bool) {
-	for svcName, svc := range m.services {
+	for svcName, svc := range m.components {
 		if _, ok := svc.modMap[ns]; ok {
 			return svcName, true
 		}
@@ -254,8 +254,8 @@ func (m *modelSet) GetModelNameForNamespace(ns string) (string, bool) {
 	return "", false
 }
 
-func (m *modelSet) GetDefaultServiceModuleMap() map[string]struct{} {
-	return m.services[m.defaultService].modMap
+func (m *modelSet) GetDefaultComponentModuleMap() map[string]struct{} {
+	return m.components[m.defaultComponent].modMap
 }
 
 func log(output string) {
@@ -292,37 +292,36 @@ func (m *modelSet) ServiceSetRunningWithLog(
 		return outs
 	}
 
-	var changedSvcs map[string]bool
+	var changedComps map[string]bool
 	if changedNSMap != nil {
-		changedSvcs = make(map[string]bool, 0)
+		changedComps = make(map[string]bool, 0)
 		for ns, _ := range *changedNSMap {
-			changedSvcs[m.nsMap[ns]] = true
+			changedComps[m.nsMap[ns]] = true
 		}
-		changedSvcs[m.defaultService] = true
+		changedComps[m.defaultComponent] = true
 	}
 
-	for _, ordServ := range m.orderedServices {
-		if changedSvcs != nil {
-			if _, ok := changedSvcs[ordServ]; !ok {
-				log(fmt.Sprintf("\t'%s' hasn't changed.\n",
-					ordServ))
+	for _, ordComp := range m.orderedComponents {
+		if changedComps != nil {
+			if _, ok := changedComps[ordComp]; !ok {
+				log(fmt.Sprintf("\t'%s' hasn't changed.\n", ordComp))
 				continue
 			}
 		}
 		startTime := time.Now()
-		serv, ok := m.services[ordServ]
+		comp, ok := m.components[ordComp]
 		if !ok {
-			log(fmt.Sprintf("Unable to set running config for '%s' service.\n",
-				ordServ))
+			log(fmt.Sprintf("Unable to set running config for '%s' component.\n",
+				ordComp))
 			continue
 		}
-		log(fmt.Sprintf("\t'%s' has changed.\n", ordServ))
+		log(fmt.Sprintf("\t'%s' has changed.\n", ordComp))
 
-		jsonTree := serv.FilterSetTree(m, dn)
-		err := compMgr.SetConfigForModel(ordServ, string(jsonTree))
+		jsonTree := comp.FilterSetTree(m, dn)
+		err := compMgr.SetConfigForModel(ordComp, string(jsonTree))
 		if err != nil {
-			fmt.Printf("Failed to run service provisioning for %s: %s\n",
-				ordServ, err.Error())
+			fmt.Printf("Failed to run component provisioning for %s: %s\n",
+				ordComp, err.Error())
 			if e, ok := err.(dbus.Error); ok {
 				new_out := &exec.Output{Path: []string{""},
 					Output: fmt.Sprint(e)}
@@ -331,7 +330,7 @@ func (m *modelSet) ServiceSetRunningWithLog(
 		}
 
 		if commitLogFn != nil {
-			commitLogFn(fmt.Sprintf("Commit %s", ordServ), startTime)
+			commitLogFn(fmt.Sprintf("Commit %s", ordComp), startTime)
 		}
 	}
 	return outs
@@ -346,17 +345,17 @@ func (m *modelSet) ServiceGetRunning(
 		return nil, err
 	}
 
-	var configs = make([][]byte, 0, len(m.services))
+	var configs = make([][]byte, 0, len(m.components))
 
-	for _, serv := range m.services {
+	for _, comp := range m.components {
 		// Build up JSON config, then decode ...
 		var jsonInput string
 		err := compMgr.StoreConfigByModelInto(
-			serv.name, &jsonInput)
+			comp.name, &jsonInput)
 
 		if err != nil {
 			return nil, fmt.Errorf("Unable to get running config for %s: %s",
-				serv.name, err)
+				comp.name, err)
 		}
 		configs = append(configs, []byte(jsonInput))
 	}

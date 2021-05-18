@@ -4,7 +4,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 // This file contains tests relating to the submodules, specifically to
-// their assignment to modelsets / services.
+// their assignment to modelsets / components.
 
 package schema
 
@@ -98,12 +98,12 @@ func TestModuleAndSubmoduleInSameVCIComponent(t *testing.T) {
 		"modAndSubmodSameComp", schemas)
 	defer os.RemoveAll(tmpYangDir)
 
-	serviceMap, _ := getTestServiceMap(t, tmpYangDir,
+	componentMap, _ := getTestComponentMap(t, tmpYangDir,
 		vciCompWithModuleAndSubmodule.String())
 
-	checkNumberOfServices(t, serviceMap, 1)
+	checkNumberOfComponents(t, componentMap, 1)
 
-	checkServiceNamespaces(t, serviceMap,
+	checkComponentNamespaces(t, componentMap,
 		"net.vyatta.vci.test.mod-and-submod",
 		[]string{
 			NsPfx + "vyatta-test-mod1-v1",
@@ -134,12 +134,12 @@ func TestModuleAndSubmoduleInDefaultComp(t *testing.T) {
 		"modAndSubmodInDefaultComp", schemas)
 	defer os.RemoveAll(tmpYangDir)
 
-	serviceMap, _ := getTestServiceMap(t, tmpYangDir,
+	componentMap, _ := getTestComponentMap(t, tmpYangDir,
 		defaultComp.String())
 
-	checkNumberOfServices(t, serviceMap, 1)
+	checkNumberOfComponents(t, componentMap, 1)
 
-	checkServiceNamespaces(t, serviceMap,
+	checkComponentNamespaces(t, componentMap,
 		"net.vyatta.vci.test.default",
 		[]string{
 			NsPfx + "vyatta-test-mod1-v1",
@@ -174,16 +174,16 @@ func TestSubmoduleInDifferentComponent(t *testing.T) {
 		"modAndSubmodDiffComp", schemas)
 	defer os.RemoveAll(tmpYangDir)
 
-	serviceMap, _ := getTestServiceMap(t, tmpYangDir,
+	componentMap, _ := getTestComponentMap(t, tmpYangDir,
 		moduleComp.String(), submoduleComp.String())
 
-	checkNumberOfServices(t, serviceMap, 2)
+	checkNumberOfComponents(t, componentMap, 2)
 
-	checkServiceNamespaces(t, serviceMap,
+	checkComponentNamespaces(t, componentMap,
 		"net.vyatta.vci.test.mod",
 		[]string{NsPfx + "vyatta-test-mod1-v1"},
 		[]string{})
-	checkServiceNamespaces(t, serviceMap,
+	checkComponentNamespaces(t, componentMap,
 		"net.vyatta.vci.test.submod",
 		[]string{"vyatta-test-submod1-v1@" + NsPfx + "vyatta-test-mod1-v1"},
 		[]string{})
@@ -216,16 +216,16 @@ func TestModuleInVCICompSubmoduleInDefaultComp(t *testing.T) {
 		"modInCompSubmodInDflt", schemas)
 	defer os.RemoveAll(tmpYangDir)
 
-	serviceMap, _ := getTestServiceMap(t, tmpYangDir,
+	componentMap, _ := getTestComponentMap(t, tmpYangDir,
 		moduleComp.String(), defaultComp.String())
 
-	checkNumberOfServices(t, serviceMap, 2)
+	checkNumberOfComponents(t, componentMap, 2)
 
-	checkServiceNamespaces(t, serviceMap,
+	checkComponentNamespaces(t, componentMap,
 		"net.vyatta.vci.test.mod",
 		[]string{NsPfx + "vyatta-test-mod1-v1"},
 		[]string{})
-	checkServiceNamespaces(t, serviceMap,
+	checkComponentNamespaces(t, componentMap,
 		"net.vyatta.vci.test.default",
 		[]string{"vyatta-test-submod1-v1@" + NsPfx + "vyatta-test-mod1-v1"},
 		[]string{})
@@ -258,16 +258,16 @@ func TestModuleInDefaultCompSubmoduleInVCIComp(t *testing.T) {
 		"modInDfltSubmodInComp", schemas)
 	defer os.RemoveAll(tmpYangDir)
 
-	serviceMap, _ := getTestServiceMap(t, tmpYangDir,
+	componentMap, _ := getTestComponentMap(t, tmpYangDir,
 		moduleComp.String(), defaultComp.String())
 
-	checkNumberOfServices(t, serviceMap, 2)
+	checkNumberOfComponents(t, componentMap, 2)
 
-	checkServiceNamespaces(t, serviceMap,
+	checkComponentNamespaces(t, componentMap,
 		"net.vyatta.vci.test.default",
 		[]string{NsPfx + "vyatta-test-mod1-v1"},
 		[]string{})
-	checkServiceNamespaces(t, serviceMap,
+	checkComponentNamespaces(t, componentMap,
 		"net.vyatta.vci.test.submod",
 		[]string{"vyatta-test-submod1-v1@" + NsPfx + "vyatta-test-mod1-v1"},
 		[]string{})

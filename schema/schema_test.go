@@ -245,8 +245,8 @@ func getComponentConfigs(t *testing.T, dotCompFiles ...string,
 	return configs
 }
 
-func getTestServiceMap(t *testing.T, yangDir string, dotCompFiles ...string,
-) (map[string]*service, []string) {
+func getTestComponentMap(t *testing.T, yangDir string, dotCompFiles ...string,
+) (map[string]*component, []string) {
 
 	compExt := &CompilationExtensions{
 		ComponentConfig: getComponentConfigs(
@@ -263,7 +263,7 @@ func getTestServiceMap(t *testing.T, yangDir string, dotCompFiles ...string,
 	if err != nil {
 		t.Fatalf("Unexpected compilation failure:\n  %s\n\n", err.Error())
 	}
-	return ms.(*modelSet).services, ms.(*modelSet).orderedServices
+	return ms.(*modelSet).components, ms.(*modelSet).orderedComponents
 }
 
 func getModelSet(t *testing.T, yangDir string, dotCompFiles ...string,
@@ -287,40 +287,40 @@ func getModelSet(t *testing.T, yangDir string, dotCompFiles ...string,
 	return ms.(*modelSet), err
 }
 
-func checkNumberOfServices(
+func checkNumberOfComponents(
 	t *testing.T,
-	serviceMap map[string]*service,
+	componentMap map[string]*component,
 	numSvcs int) {
 
-	if len(serviceMap) != numSvcs {
-		t.Fatalf("Unexpected number of services found: exp %d, got %d\n",
-			numSvcs, len(serviceMap))
+	if len(componentMap) != numSvcs {
+		t.Fatalf("Unexpected number of components found: exp %d, got %d\n",
+			numSvcs, len(componentMap))
 	}
 }
 
-func checkServiceNamespaces(
+func checkComponentNamespaces(
 	t *testing.T,
-	serviceMap map[string]*service,
+	componentMap map[string]*component,
 	modelName string,
 	expSetAndCheckNamespaces []string,
 	expCheckOnlyNamespaces []string,
 ) {
 
-	service, ok := serviceMap[modelName]
+	component, ok := componentMap[modelName]
 	if !ok {
 		// Only an error if there are any namespaces to check.  Otherwise
 		// this is a model for a different model set.
 		if len(expSetAndCheckNamespaces) != 0 {
-			t.Fatalf("Unable to find service '%s'\n", modelName)
+			t.Fatalf("Unable to find component '%s'\n", modelName)
 		}
 		return
 	}
 
 	// First check 'owned' namespaces that will be sent to component's Set()
 	// function on commit
-	checkNamespacesInMap(t, service.modMap, modelName, expSetAndCheckNamespaces,
+	checkNamespacesInMap(t, component.modMap, modelName, expSetAndCheckNamespaces,
 		"SET")
-	checkNamespacesInMap(t, service.checkMap, modelName,
+	checkNamespacesInMap(t, component.checkMap, modelName,
 		append(expSetAndCheckNamespaces, expCheckOnlyNamespaces...),
 		"CHECK")
 }
@@ -347,8 +347,8 @@ func checkNamespacesInMap(
 	}
 }
 
-func dumpServiceMap(serviceMap map[string]*service) {
-	for svcName, svc := range serviceMap {
+func dumpComponentMap(componentMap map[string]*component) {
+	for svcName, svc := range componentMap {
 		fmt.Printf("S: %s\n", svcName)
 		for ns, _ := range svc.modMap {
 			fmt.Printf("\tNS: %s\n", ns)
@@ -364,9 +364,9 @@ func checkServiceValidation(
 	expCfgSnippets []string,
 	unexpCfgSnippets []string,
 ) {
-	svc := extMs.services[svcName]
+	svc := extMs.components[svcName]
 	if svc == nil {
-		t.Fatalf("Unable to find service %s\n", svcName)
+		t.Fatalf("Unable to find component %s\n", svcName)
 		return
 	}
 
@@ -395,9 +395,9 @@ func checkSetRunning(
 	expCfgSnippets []string,
 	unexpCfgSnippets []string,
 ) {
-	svc := extMs.services[svcName]
+	svc := extMs.components[svcName]
 	if svc == nil {
-		t.Fatalf("Unable to find service %s\n", svcName)
+		t.Fatalf("Unable to find component %s\n", svcName)
 		return
 	}
 
