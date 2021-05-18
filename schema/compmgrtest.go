@@ -3,7 +3,7 @@
 //
 // SPDX-License-Identifier: MPL-2.0
 
-package compmgrtest
+package schema
 
 import (
 	"fmt"
@@ -39,7 +39,6 @@ func NewLogEntry(fn string, params ...string) TestLogEntry {
 // to the bus (for validate and commit) or provide the ability to return the
 // expected config (or an error) for 'get' operations.
 type TestCompMgr struct {
-	//OperationsManager
 	t *testing.T
 
 	validatedConfig map[string]string
@@ -50,7 +49,7 @@ type TestCompMgr struct {
 }
 
 // Compile time check that the concrete type meets the interface
-//var _ ComponentManager = (*TestCompMgr)(nil)
+var _ ComponentManager = (*TestCompMgr)(nil)
 
 func NewTestCompMgr(t *testing.T) *TestCompMgr {
 	compMgr := &TestCompMgr{t: t}

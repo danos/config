@@ -15,7 +15,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/danos/config/compmgrtest"
 	"github.com/danos/vci/conf"
 	"github.com/danos/yang/compile"
 	"github.com/danos/yang/data/encoding"
@@ -377,7 +376,7 @@ func checkServiceValidation(
 		return
 	}
 
-	testCompMgr := compmgrtest.NewTestCompMgr(t)
+	testCompMgr := NewTestCompMgr(t)
 
 	extMs.ServiceValidation(testCompMgr, dn, nil /* logFn */)
 
@@ -411,7 +410,7 @@ func checkSetRunning(
 	changedNSMap := make(map[string]bool)
 	changedNSMap[svcNs] = true
 
-	testCompMgr := compmgrtest.NewTestCompMgr(t)
+	testCompMgr := NewTestCompMgr(t)
 
 	extMs.ServiceSetRunning(testCompMgr, dn, &changedNSMap)
 
