@@ -24,7 +24,7 @@ type OperationsManager interface {
 }
 
 type ServiceManager interface {
-	CloseSvcMgr()
+	Close()
 	IsActive(name string) (bool, error)
 }
 
@@ -64,4 +64,23 @@ func (c *component) HasConfiguration(n Node, dn datanode.DataNode) bool {
 type ComponentManager interface {
 	OperationsManager
 	ServiceManager
+}
+
+type compMgr struct {
+	OperationsManager
+	ServiceManager
+}
+
+var _ OperationsManager = (*compMgr)(nil)
+var _ ServiceManager = (*compMgr)(nil)
+var _ ComponentManager = (*compMgr)(nil)
+
+func NewCompMgr(
+	opsMgr OperationsManager,
+	svcMgr ServiceManager,
+) *compMgr {
+	return &compMgr{
+		OperationsManager: opsMgr,
+		ServiceManager:    svcMgr,
+	}
 }

@@ -29,7 +29,7 @@ type TestLogEntry struct {
 	params []string
 }
 
-func NewLogEntry(fn string, params ...string) TestLogEntry {
+func NewTestLogEntry(fn string, params ...string) TestLogEntry {
 	return TestLogEntry{fn: fn, params: params}
 }
 
@@ -38,7 +38,7 @@ func NewLogEntry(fn string, params ...string) TestLogEntry {
 // we want to verify that the correct tuple of {config, model} has been passed
 // to the bus (for validate and commit) or provide the ability to return the
 // expected config (or an error) for 'get' operations.
-type TestCompMgr struct {
+type testCompParams struct {
 	t *testing.T
 
 	validatedConfig map[string]string
@@ -48,68 +48,82 @@ type TestCompMgr struct {
 	testLog []TestLogEntry
 }
 
+type TestCompMgr struct {
+	*compMgr
+
+	tcmParams *testCompParams
+}
+
 // Compile time check that the concrete type meets the interface
 var _ ComponentManager = (*TestCompMgr)(nil)
 
 func NewTestCompMgr(t *testing.T) *TestCompMgr {
-	compMgr := &TestCompMgr{t: t}
-	compMgr.testLog = make([]TestLogEntry, 0)
 
-	compMgr.validatedConfig = make(map[string]string, 0)
-	compMgr.committedConfig = make(map[string]string, 0)
-	compMgr.currentState = make(map[string]string, 0)
+	var tcmParams testCompParams
 
-	return compMgr
+	tcmParams.t = t
+	tcmParams.testLog = make([]TestLogEntry, 0)
+
+	tcmParams.validatedConfig = make(map[string]string, 0)
+	tcmParams.committedConfig = make(map[string]string, 0)
+	tcmParams.currentState = make(map[string]string, 0)
+
+	tcm := &TestCompMgr{
+		compMgr: NewCompMgr(
+			newTestOpsMgr(&tcmParams), newTestSvcMgr(&tcmParams)),
+		tcmParams: &tcmParams,
+	}
+
+	return tcm
 }
-
-func (tcm *TestCompMgr) Dial() error { return nil }
 
 // Config / state management.
 
 func (tcm *TestCompMgr) ValidatedConfig(model string) string {
-	cfg, ok := tcm.validatedConfig[model]
+	cfg, ok := tcm.tcmParams.validatedConfig[model]
 	if !ok {
-		tcm.t.Fatalf("No validated config for %s", model)
+		tcm.tcmParams.t.Fatalf("No validated config for %s", model)
 	}
 	return cfg
 }
 
 func (tcm *TestCompMgr) CommittedConfig(model string) string {
-	cfg, ok := tcm.committedConfig[model]
+	cfg, ok := tcm.tcmParams.committedConfig[model]
 	if !ok {
-		tcm.t.Fatalf("No committed config for %s", model)
+		tcm.tcmParams.t.Fatalf("No committed config for %s", model)
 	}
 	return cfg
 }
 
 func (tcm *TestCompMgr) CurrentState(model string) string {
-	cfg, ok := tcm.currentState[model]
+	cfg, ok := tcm.tcmParams.currentState[model]
 	if !ok {
-		tcm.t.Fatalf("No current state for %s", model)
+		tcm.tcmParams.t.Fatalf("No current state for %s", model)
 	}
 	return cfg
 }
 
 func (tcm *TestCompMgr) SetCurrentState(model, stateJson string) {
-	tcm.currentState[model] = stateJson
+	tcm.tcmParams.currentState[model] = stateJson
 }
 
 // Log management.
 
-func (tcm *TestCompMgr) addLogEntry(fn string, params ...string) {
+func (tom *testOpsMgr) addLogEntry(fn string, params ...string) {
 	fmt.Printf("Add %s\n", fn)
-	tcm.testLog = append(tcm.testLog, NewLogEntry(fn, params...))
+	tom.tcmParams.testLog = append(tom.tcmParams.testLog,
+		NewTestLogEntry(fn, params...))
 }
 
 func (tcm *TestCompMgr) ClearLogEntries() {
 	fmt.Printf("Clear log\n")
-	tcm.testLog = nil
+	tcm.tcmParams.testLog = nil
 }
 
 func (tcm *TestCompMgr) filteredLogEntries(filter string) []TestLogEntry {
 	retLog := make([]TestLogEntry, 0)
 
-	for _, entry := range tcm.testLog {
+	for _, entry := range tcm.tcmParams.testLog {
 		if entry.fn == filter {
 			retLog = append(retLog, entry)
 		}
@@ -124,8 +138,8 @@ func (tcm *TestCompMgr) CheckLogEntries(
 	entries []TestLogEntry,
 	filter string,
 ) {
-	actualLog := tcm.testLog
-	fmt.Printf("Entries: %d\n", len(tcm.testLog))
+	actualLog := tcm.tcmParams.testLog
+	fmt.Printf("Entries: %d\n", len(tcm.tcmParams.testLog))
 	if filter != NoFilter {
 		actualLog = tcm.filteredLogEntries(filter)
 	}
@@ -159,7 +173,7 @@ func (tcm *TestCompMgr) CheckLogEntries(
 
 func (tcm *TestCompMgr) dumpLog(t *testing.T) {
 	t.Logf("--- START TEST LOG ---\n")
-	for _, entry := range tcm.testLog {
+	for _, entry := range tcm.tcmParams.testLog {
 		t.Logf("%s:\n", entry.fn)
 		for _, param := range entry.params {
 			t.Logf("\t%s\n", param)
@@ -168,7 +182,16 @@ func (tcm *TestCompMgr) dumpLog(t *testing.T) {
 	t.Logf("---  END TEST LOG  ---\n")
 }
 
-func (tcm *TestCompMgr) marshal(object interface{}) (string, error) {
+// TestOpsMgr
+type testOpsMgr struct {
+	tcmParams *testCompParams
+}
+
+func newTestOpsMgr(tcmParams *testCompParams) *testOpsMgr {
+	return &testOpsMgr{tcmParams: tcmParams}
+}
+
+func (tom *testOpsMgr) marshal(object interface{}) (string, error) {
 	if s, ok := object.(string); ok {
 		return s, nil
 	}
@@ -179,7 +202,7 @@ func (tcm *TestCompMgr) marshal(object interface{}) (string, error) {
 	return string(buf), nil
 }
 
-func (tcm *TestCompMgr) unmarshal(encodedData string, object interface{}) error {
+func (tom *testOpsMgr) unmarshal(encodedData string, object interface{}) error {
 	if s, ok := object.(*string); ok {
 		*s = encodedData
 		return nil
@@ -191,61 +214,72 @@ func (tcm *TestCompMgr) unmarshal(encodedData string, object interface{}) error 
 	return nil
 }
 
-func (tcm *TestCompMgr) SetConfigForModel(
+func (tom *testOpsMgr) Dial() error { return nil }
+
+func (tom *testOpsMgr) SetConfigForModel(
 	modelName string,
 	object interface{},
 ) error {
 	var err error
 
-	cfg, err := tcm.marshal(object)
+	cfg, err := tom.marshal(object)
 
-	tcm.committedConfig[modelName] = string(cfg)
+	tom.tcmParams.committedConfig[modelName] = string(cfg)
 
 	fmt.Printf("\tadd log entry\n")
-	tcm.addLogEntry(SetRunning, modelName, cfg)
+	tom.addLogEntry(SetRunning, modelName, cfg)
 
 	return err
 }
 
-func (tcm *TestCompMgr) CheckConfigForModel(
+func (tom *testOpsMgr) CheckConfigForModel(
 	modelName string,
 	object interface{},
 ) error {
 
-	cfg, err := tcm.marshal(object)
+	cfg, err := tom.marshal(object)
 
-	tcm.validatedConfig[modelName] = string(cfg)
+	tom.tcmParams.validatedConfig[modelName] = string(cfg)
 
-	tcm.addLogEntry(Validate, modelName, cfg)
+	tom.addLogEntry(Validate, modelName, cfg)
 
 	return err
 }
 
-func (tcm *TestCompMgr) StoreConfigByModelInto(
+func (tom *testOpsMgr) StoreConfigByModelInto(
 	modelName string,
 	object interface{},
 ) error {
-	err := tcm.unmarshal(tcm.committedConfig[modelName], object)
+	err := tom.unmarshal(tom.tcmParams.committedConfig[modelName], object)
 
-	tcm.addLogEntry(GetRunning, modelName, fmt.Sprintf("%v", object))
+	tom.addLogEntry(GetRunning, modelName, fmt.Sprintf("%v", object))
 
 	return err
 }
 
-func (tcm *TestCompMgr) StoreStateByModelInto(
+func (tom *testOpsMgr) StoreStateByModelInto(
 	modelName string,
 	object interface{},
 ) error {
-	err := tcm.unmarshal(tcm.currentState[modelName], object)
+	err := tom.unmarshal(tom.tcmParams.currentState[modelName], object)
 
-	tcm.addLogEntry(GetState, modelName, fmt.Sprintf("%v", object))
+	tom.addLogEntry(GetState, modelName, fmt.Sprintf("%v", object))
 
 	return err
 }
 
-func (tcm *TestCompMgr) CloseSvcMgr() { return }
+// TestSvcMgr
+type testSvcMgr struct {
+	tcmParams *testCompParams
+}
+
+func newTestSvcMgr(tcmParams *testCompParams) *testSvcMgr {
+	return &testSvcMgr{tcmParams: tcmParams}
+}
+
+func (tsm *testSvcMgr) Close() { return }
 
 // For now, assume any component is active.
-func (tcm *TestCompMgr) IsActive(name string) (bool, error) {
+func (tsm *testSvcMgr) IsActive(name string) (bool, error) {
 	return true, nil
 }
