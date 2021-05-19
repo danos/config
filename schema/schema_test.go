@@ -410,7 +410,7 @@ func checkSetRunning(
 	changedNSMap := make(map[string]bool)
 	changedNSMap[svcNs] = true
 
-	extMs.ServiceSetRunning(compMgr, dn, &changedNSMap)
+	compMgr.ComponentSetRunning(extMs, dn, &changedNSMap)
 
 	checkLastCandidateConfig(t, svcName, compMgr.CommittedConfig(svcName),
 		expCfgSnippets, unexpCfgSnippets)
