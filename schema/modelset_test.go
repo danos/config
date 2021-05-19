@@ -491,6 +491,12 @@ func TestValidateCandidate(t *testing.T) {
 
 	extMs, _ := getModelSet(t, tmpYangDir, vciComp.String())
 
+	compMgr := NewTestCompMgr(
+		t,
+		extMs,
+		conf.BaseModelSet,
+		getComponentConfigs(t, vciComp.String()))
+
 	inputCfgAsJson := []byte(`
 		{
 			"checkCont":{
@@ -511,7 +517,7 @@ func TestValidateCandidate(t *testing.T) {
 	}
 	unexpCheckCfgSnippets := []string{"notReqForCheck"}
 
-	checkServiceValidation(t, extMs, "net.vyatta.vci.test.test-check",
+	checkComponentValidation(t, compMgr, extMs, "net.vyatta.vci.test.test-check",
 		inputCfgAsJson, expCheckCfgSnippets, unexpCheckCfgSnippets)
 
 	expSetCfgSnippets := []string{
@@ -520,7 +526,7 @@ func TestValidateCandidate(t *testing.T) {
 	unexpSetCfgSnippets := []string{
 		"reqForCheckCont", "notReqForCheck"}
 
-	checkSetRunning(t, extMs, "net.vyatta.vci.test.test-check",
+	checkSetRunning(t, compMgr, extMs, "net.vyatta.vci.test.test-check",
 		NsPfx+"vyatta-test-check-v1",
 		inputCfgAsJson, expSetCfgSnippets, unexpSetCfgSnippets)
 }

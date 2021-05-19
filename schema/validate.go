@@ -49,7 +49,7 @@ func ValidateSchemaWithLog(
 	}
 
 	if ms, ok := sn.(ModelSet); ok {
-		service_errors := ms.ServiceValidation(compMgr, dn, logFn)
+		service_errors := compMgr.ComponentValidation(ms, dn, logFn)
 		if len(service_errors) > 0 {
 			ok = false
 			errs = append(errs, service_errors...)

@@ -11,6 +11,8 @@ import (
 
 	"github.com/danos/encoding/rfc7951"
 	"github.com/danos/mgmterror"
+	"github.com/danos/vci/conf"
+	yang "github.com/danos/yang/schema"
 )
 
 // TestLog provides the ability for tests to verify which components had
@@ -57,7 +59,12 @@ type TestCompMgr struct {
 // Compile time check that the concrete type meets the interface
 var _ ComponentManager = (*TestCompMgr)(nil)
 
-func NewTestCompMgr(t *testing.T) *TestCompMgr {
+func NewTestCompMgr(
+	t *testing.T,
+	ms yang.ModelSet,
+	modelSetName string,
+	compConfig []*conf.ServiceConfig,
+) *TestCompMgr {
 
 	var tcmParams testCompParams
 
@@ -70,7 +77,12 @@ func NewTestCompMgr(t *testing.T) *TestCompMgr {
 
 	tcm := &TestCompMgr{
 		compMgr: NewCompMgr(
-			newTestOpsMgr(&tcmParams), newTestSvcMgr(&tcmParams)),
+			newTestOpsMgr(&tcmParams),
+			newTestSvcMgr(&tcmParams),
+			ms,
+			modelSetName,
+			compConfig,
+		),
 		tcmParams: &tcmParams,
 	}
 

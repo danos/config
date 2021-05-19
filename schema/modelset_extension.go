@@ -38,11 +38,6 @@ type ModelSet interface {
 	ListActiveOrConfiguredModels(
 		compMgr ComponentManager,
 		config datanode.DataNode) []string
-	ServiceValidation(
-		ComponentManager,
-		datanode.DataNode,
-		commitTimeLogFn,
-	) []error
 	ServiceSetRunning(
 		ComponentManager,
 		datanode.DataNode,
@@ -90,41 +85,17 @@ func (c *CompilationExtensions) ExtendModelSet(
 	m yang.ModelSet,
 ) (yang.ModelSet, error) {
 
-	modelToNamespaceMap, globalNSMap, defaultComponent, err :=
-		getModelToNamespaceMapsForModelSet(
-			m, VyattaV1ModelSet, c.ComponentConfig)
+	compMappings, err := createComponentMappings(
+		m, VyattaV1ModelSet, c.ComponentConfig)
 	if err != nil {
 		return nil, err
-	}
-	var componentMap map[string]*component
-
-	componentMap = getComponentMap(modelToNamespaceMap)
-
-	orderedComponents, err := getOrderedComponentsList(
-		VyattaV1ModelSet, defaultComponent, c.ComponentConfig)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(componentMap) != len(orderedComponents) {
-		return nil, fmt.Errorf(
-			"Mismatch between number of ordered (%d) "+
-				"and unordered (%d) components.",
-			len(orderedComponents), len(componentMap))
-	}
-
-	compMappings := &componentMappings{
-		components:        componentMap,
-		nsMap:             globalNSMap,
-		orderedComponents: orderedComponents,
-		defaultComponent:  defaultComponent,
 	}
 
 	ext := newExtend(nil)
 	return &modelSet{
 			m, ext, newState(m, ext),
 			compMappings},
-		err
+		nil
 }
 
 func checkAndInitOpsMgr(compMgr ComponentManager, operation string) error {
@@ -192,36 +163,6 @@ func (m *modelSet) ListActiveOrConfiguredModels(
 		}
 	}
 	return out
-}
-
-func (m *modelSet) ServiceValidation(
-	compMgr ComponentManager,
-	dn datanode.DataNode,
-	logFn commitTimeLogFn,
-) []error {
-
-	if err := checkAndInitOpsMgr(compMgr, "ServiceValidation"); err != nil {
-		log(err.Error())
-		return []error{err}
-	}
-
-	var errs []error
-	for _, modelName := range m.ListActiveOrConfiguredModels(
-		compMgr, dn) {
-		startTime := time.Now()
-
-		svc := m.compMappings.components[modelName]
-		jsonTree := svc.FilterCheckTree(m, dn)
-
-		err := compMgr.CheckConfigForModel(modelName, string(jsonTree))
-		if err != nil {
-			errs = append(errs, err)
-		}
-		if logFn != nil {
-			logFn(fmt.Sprintf("Check %s", modelName), startTime)
-		}
-	}
-	return errs
 }
 
 func (m *modelSet) GetModelNameForNamespace(ns string) (string, bool) {

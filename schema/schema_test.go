@@ -356,17 +356,18 @@ func dumpComponentMap(componentMap map[string]*component) {
 	}
 }
 
-func checkServiceValidation(
+func checkComponentValidation(
 	t *testing.T,
-	extMs *modelSet,
-	svcName string,
+	compMgr *TestCompMgr,
+	extMs ModelSet,
+	compName string,
 	inputCfgInJson []byte,
 	expCfgSnippets []string,
 	unexpCfgSnippets []string,
 ) {
-	svc := extMs.compMappings.components[svcName]
-	if svc == nil {
-		t.Fatalf("Unable to find component %s\n", svcName)
+	comp := compMgr.compMappings.components[compName]
+	if comp == nil {
+		t.Fatalf("Unable to find component %s\n", compName)
 		return
 	}
 
@@ -376,18 +377,17 @@ func checkServiceValidation(
 		return
 	}
 
-	testCompMgr := NewTestCompMgr(t)
-
-	extMs.ServiceValidation(testCompMgr, dn, nil /* logFn */)
+	compMgr.ComponentValidation(extMs, dn, nil /* logFn */)
 
 	checkLastCandidateConfig(
-		t, svcName, testCompMgr.ValidatedConfig(svcName),
+		t, compName, compMgr.ValidatedConfig(compName),
 		expCfgSnippets, unexpCfgSnippets)
 
 }
 
 func checkSetRunning(
 	t *testing.T,
+	compMgr *TestCompMgr,
 	extMs *modelSet,
 	svcName string,
 	svcNs string,
@@ -410,11 +410,9 @@ func checkSetRunning(
 	changedNSMap := make(map[string]bool)
 	changedNSMap[svcNs] = true
 
-	testCompMgr := NewTestCompMgr(t)
+	extMs.ServiceSetRunning(compMgr, dn, &changedNSMap)
 
-	extMs.ServiceSetRunning(testCompMgr, dn, &changedNSMap)
-
-	checkLastCandidateConfig(t, svcName, testCompMgr.CommittedConfig(svcName),
+	checkLastCandidateConfig(t, svcName, compMgr.CommittedConfig(svcName),
 		expCfgSnippets, unexpCfgSnippets)
 }
 
