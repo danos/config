@@ -11,7 +11,6 @@ import (
 
 	"github.com/danos/encoding/rfc7951"
 	"github.com/danos/mgmterror"
-	"github.com/danos/vci/conf"
 	yang "github.com/danos/yang/schema"
 )
 
@@ -62,8 +61,7 @@ var _ ComponentManager = (*TestCompMgr)(nil)
 func NewTestCompMgr(
 	t *testing.T,
 	ms yang.ModelSet,
-	modelSetName string,
-	compConfig []*conf.ServiceConfig,
+	mappings *ComponentMappings,
 ) *TestCompMgr {
 
 	var tcmParams testCompParams
@@ -80,8 +78,7 @@ func NewTestCompMgr(
 			newTestOpsMgr(&tcmParams),
 			newTestSvcMgr(&tcmParams),
 			ms,
-			modelSetName,
-			compConfig,
+			mappings,
 		),
 		tcmParams: &tcmParams,
 	}

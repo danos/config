@@ -98,8 +98,8 @@ func TestModuleAndSubmoduleInSameVCIComponent(t *testing.T) {
 		"modAndSubmodSameComp", schemas)
 	defer os.RemoveAll(tmpYangDir)
 
-	componentMap, _ := getTestComponentMap(t, tmpYangDir,
-		vciCompWithModuleAndSubmodule.String())
+	componentMap, _ := getTestComponentMap(
+		t, tmpYangDir, testModelSet, vciCompWithModuleAndSubmodule.String())
 
 	checkNumberOfComponents(t, componentMap, 1)
 
@@ -134,8 +134,8 @@ func TestModuleAndSubmoduleInDefaultComp(t *testing.T) {
 		"modAndSubmodInDefaultComp", schemas)
 	defer os.RemoveAll(tmpYangDir)
 
-	componentMap, _ := getTestComponentMap(t, tmpYangDir,
-		defaultComp.String())
+	componentMap, _ := getTestComponentMap(
+		t, tmpYangDir, testModelSet, defaultComp.String())
 
 	checkNumberOfComponents(t, componentMap, 1)
 
@@ -174,7 +174,8 @@ func TestSubmoduleInDifferentComponent(t *testing.T) {
 		"modAndSubmodDiffComp", schemas)
 	defer os.RemoveAll(tmpYangDir)
 
-	componentMap, _ := getTestComponentMap(t, tmpYangDir,
+	componentMap, _ := getTestComponentMap(
+		t, tmpYangDir, testModelSet,
 		moduleComp.String(), submoduleComp.String())
 
 	checkNumberOfComponents(t, componentMap, 2)
@@ -216,7 +217,8 @@ func TestModuleInVCICompSubmoduleInDefaultComp(t *testing.T) {
 		"modInCompSubmodInDflt", schemas)
 	defer os.RemoveAll(tmpYangDir)
 
-	componentMap, _ := getTestComponentMap(t, tmpYangDir,
+	componentMap, _ := getTestComponentMap(
+		t, tmpYangDir, testModelSet,
 		moduleComp.String(), defaultComp.String())
 
 	checkNumberOfComponents(t, componentMap, 2)
@@ -258,7 +260,8 @@ func TestModuleInDefaultCompSubmoduleInVCIComp(t *testing.T) {
 		"modInDfltSubmodInComp", schemas)
 	defer os.RemoveAll(tmpYangDir)
 
-	componentMap, _ := getTestComponentMap(t, tmpYangDir,
+	componentMap, _ := getTestComponentMap(
+		t, tmpYangDir, testModelSet,
 		moduleComp.String(), defaultComp.String())
 
 	checkNumberOfComponents(t, componentMap, 2)

@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2019, AT&T Intellectual Property. All rights reserved.
+// Copyright (c) 2017-2021, AT&T Intellectual Property. All rights reserved.
 //
 // Copyright (c) 2016-2017 by Brocade Communications Systems, Inc.
 // All rights reserved.
@@ -8,15 +8,16 @@
 package schema
 
 import (
-	"github.com/danos/vci/conf"
 	"github.com/danos/yang/compile"
 	"github.com/danos/yang/parse"
 	"github.com/danos/yang/xpath"
 	"github.com/danos/yang/xpath/xutils"
 )
 
+// Previously contained information passed through YANG compiler. Left in for
+// now in case of future use given full removal requires changes across 3
+// repositories.
 type CompilationExtensions struct {
-	ComponentConfig []*conf.ServiceConfig
 }
 
 func (e *CompilationExtensions) NodeCardinality(

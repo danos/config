@@ -85,7 +85,7 @@ func GetSchemaWithComponents(
 		modules[mod] = t
 	}
 	return CompileModules(modules, "", false, filter,
-		&CompilationExtensions{comps})
+		&CompilationExtensions{})
 }
 
 func GetSchemaWithWarnings(
@@ -105,7 +105,7 @@ func GetSchemaWithWarnings(
 		modules[mod] = t
 	}
 	return CompileModulesWithWarnings(modules, "", false, filter,
-		&CompilationExtensions{comps})
+		&CompilationExtensions{})
 }
 
 func GetSchemaWithWarningsAndCustomFunctions(
@@ -126,7 +126,7 @@ func GetSchemaWithWarningsAndCustomFunctions(
 		modules[mod] = t
 	}
 	return CompileModulesWithWarningsAndCustomFunctions(
-		modules, "", false, filter, &CompilationExtensions{comps},
+		modules, "", false, filter, &CompilationExtensions{},
 		userFnChecker)
 }
 
@@ -244,42 +244,37 @@ func getComponentConfigs(t *testing.T, dotCompFiles ...string,
 	return configs
 }
 
-func getTestComponentMap(t *testing.T, yangDir string, dotCompFiles ...string,
+func getTestComponentMap(
+	t *testing.T,
+	yangDir string,
+	modelSetName string,
+	dotCompFiles ...string,
 ) (map[string]*component, []string) {
-
-	compExt := &CompilationExtensions{
-		ComponentConfig: getComponentConfigs(
-			t, dotCompFiles...),
-	}
 
 	ms, err := CompileDir(
 		&compile.Config{
 			YangDir:      yangDir,
 			CapsLocation: "",
 			Filter:       compile.IsConfig},
-		compExt,
-	)
+		&CompilationExtensions{})
 	if err != nil {
 		t.Fatalf("Unexpected compilation failure:\n  %s\n\n", err.Error())
 	}
-	return ms.(*modelSet).compMappings.components,
-		ms.(*modelSet).compMappings.orderedComponents
+
+	compMappings, _ := CreateComponentNSMappings(
+		ms, modelSetName, getComponentConfigs(t, dotCompFiles...))
+
+	return compMappings.Components(), compMappings.OrderedComponents()
 }
 
-func getModelSet(t *testing.T, yangDir string, dotCompFiles ...string,
-) (*modelSet, error) {
-
-	compExt := &CompilationExtensions{
-		ComponentConfig: getComponentConfigs(
-			t, dotCompFiles...),
-	}
+func getModelSet(t *testing.T, yangDir string) (*modelSet, error) {
 
 	ms, err := CompileDir(
 		&compile.Config{
 			YangDir:      yangDir,
 			CapsLocation: "",
 			Filter:       compile.IsConfig},
-		compExt,
+		&CompilationExtensions{},
 	)
 	if ms == nil {
 		return nil, err
@@ -389,15 +384,15 @@ func checkSetRunning(
 	t *testing.T,
 	compMgr *TestCompMgr,
 	extMs *modelSet,
-	svcName string,
-	svcNs string,
+	compName string,
+	compNs string,
 	inputCfgInJson []byte,
 	expCfgSnippets []string,
 	unexpCfgSnippets []string,
 ) {
-	svc := extMs.compMappings.components[svcName]
-	if svc == nil {
-		t.Fatalf("Unable to find component %s\n", svcName)
+	comp := compMgr.compMappings.components[compName]
+	if comp == nil {
+		t.Fatalf("Unable to find component %s\n", compName)
 		return
 	}
 
@@ -408,11 +403,11 @@ func checkSetRunning(
 	}
 
 	changedNSMap := make(map[string]bool)
-	changedNSMap[svcNs] = true
+	changedNSMap[compNs] = true
 
 	compMgr.ComponentSetRunning(extMs, dn, &changedNSMap)
 
-	checkLastCandidateConfig(t, svcName, compMgr.CommittedConfig(svcName),
+	checkLastCandidateConfig(t, compName, compMgr.CommittedConfig(compName),
 		expCfgSnippets, unexpCfgSnippets)
 }
 

@@ -15,6 +15,7 @@ import (
 	"github.com/danos/utils/tsort"
 	"github.com/danos/vci/conf"
 	"github.com/danos/yang/data/datanode"
+	"github.com/danos/yang/data/encoding"
 	yang "github.com/danos/yang/schema"
 )
 
@@ -23,6 +24,106 @@ type modelToNamespaceMap map[string]*nsMaps
 type nsMaps struct {
 	setMap   map[string]struct{}
 	checkMap map[string]struct{}
+}
+
+type component struct {
+	name      string
+	modMap    map[string]struct{}
+	setFilter func(s yang.Node, d datanode.DataNode,
+		children []datanode.DataNode) bool
+	checkMap    map[string]struct{}
+	checkFilter func(s yang.Node, d datanode.DataNode,
+		children []datanode.DataNode) bool
+}
+
+func (c *component) FilterSetTree(n Node, dn datanode.DataNode) []byte {
+	filteredCandidate := yang.FilterTree(n, dn, c.setFilter)
+	return encoding.ToRFC7951(n, filteredCandidate)
+}
+
+func (c *component) FilterCheckTree(n Node, dn datanode.DataNode) []byte {
+	filteredCandidate := yang.FilterTree(n, dn, c.checkFilter)
+	return encoding.ToRFC7951(n, filteredCandidate)
+}
+
+func (c *component) HasConfiguration(n Node, dn datanode.DataNode) bool {
+	return string(c.FilterSetTree(n, dn)) != "{}"
+}
+
+type ComponentMappings struct {
+	modelSetName      string
+	components        map[string]*component
+	nsMap             map[string]string
+	orderedComponents []string
+	defaultComponent  string
+}
+
+func (cm *ComponentMappings) Components() map[string]*component {
+	return cm.components
+}
+
+func (cm *ComponentMappings) Component(name string) *component {
+	comp, _ := cm.components[name]
+	return comp
+}
+
+func (cm *ComponentMappings) OrderedComponents() []string {
+	return cm.orderedComponents
+}
+
+func (cm *ComponentMappings) DefaultComponent() string {
+	return cm.defaultComponent
+}
+
+func CreateComponentNSMappings(
+	m yang.ModelSet,
+	modelSetName string,
+	compConfig []*conf.ServiceConfig,
+) (*ComponentMappings, error) {
+
+	modelToNamespaceMap, globalNSMap, defaultComponent, err :=
+		getModelToNamespaceMapsForModelSet(
+			m, modelSetName, compConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	componentMap := getComponentMap(modelToNamespaceMap)
+
+	orderedComponents, err := getOrderedComponentsList(
+		modelSetName, defaultComponent, compConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(componentMap) != len(orderedComponents) {
+		return nil, fmt.Errorf(
+			"Mismatch between number of ordered (%d) "+
+				"and unordered (%d) components.",
+			len(orderedComponents), len(componentMap))
+	}
+
+	return &ComponentMappings{
+			modelSetName:      modelSetName,
+			components:        componentMap,
+			nsMap:             globalNSMap,
+			orderedComponents: orderedComponents,
+			defaultComponent:  defaultComponent,
+		},
+		nil
+}
+
+func (cm *ComponentMappings) GetModelNameForNamespace(ns string) (string, bool) {
+	for compName, comp := range cm.components {
+		if _, ok := comp.modMap[ns]; ok {
+			return compName, true
+		}
+	}
+	return "", false
+}
+
+func (cm *ComponentMappings) GetDefaultServiceModuleMap() map[string]struct{} {
+	return cm.components[cm.defaultComponent].modMap
 }
 
 // Returns map of models to namespaces, plus the modelName for the 'default'

@@ -1,13 +1,12 @@
-// Copyright (c) 2017,2020, AT&T Intellectual Property. All rights reserved.
+// Copyright (c) 2017-2021, AT&T Intellectual Property. All rights reserved.
 //
 // Copyright (c) 2016-2017 by Brocade Communications Systems, Inc.
 // All rights reserved.
 //
 // SPDX-License-Identifier: MPL-2.0
 
-// This file contains tests relating to the ModelSet extension, which
-// deals with construction of a service bus map (mapping VCI components to
-// YANG modules and validating provided parameters)
+// This file contains tests relating to the ComponentMappings object, which
+// deals with mappings between YANG namespaces and VCI components.
 //
 // Until multiple modelsets are supported, only the vyatta-v1 modelset is
 // supported.
@@ -22,6 +21,10 @@ import (
 	"github.com/danos/utils/exec"
 	"github.com/danos/vci/conf"
 	"github.com/danos/yang/testutils"
+)
+
+const (
+	testModelSet = "vyatta-v1"
 )
 
 // TEST DATA
@@ -84,7 +87,7 @@ ModelSets=vyatta-v1,open-v1`
 const NsPfx = "urn:vyatta.com:test:"
 
 func TestMultipleComponentRegistration(t *testing.T) {
-	componentMap, _ := getTestComponentMap(t, "testdata/yang",
+	componentMap, _ := getTestComponentMap(t, "testdata/yang", testModelSet,
 		firstComp,
 		secondComp,
 		thirdComp,
@@ -131,11 +134,17 @@ ModelSets=vyatta-v1`
 func TestComponentWithNonExistentModule(t *testing.T) {
 
 	fn := func() ([]*exec.Output, []error, bool) {
-		_, err := getModelSet(t, "testdata/yang", noModuleComp)
-		if err == nil {
-			return nil, nil, true
+		ms, err := getModelSet(t, "testdata/yang")
+		if err != nil {
+			return nil, []error{err}, true
 		}
-		return nil, []error{err}, true
+		_, err = CreateComponentNSMappings(
+			ms, testModelSet,
+			getComponentConfigs(t, noModuleComp))
+		if err != nil {
+			return nil, []error{err}, true
+		}
+		return nil, nil, true
 	}
 
 	_, errs, _, debug := assert.RunTestAndCaptureStdout(fn)
@@ -211,7 +220,8 @@ Modules=vyatta-test-fourth-v1
 ModelSets=vyatta-v1`
 
 func TestComponentOrdering(t *testing.T) {
-	svcs, orderedSvcs := getTestComponentMap(t, "testdata/yang",
+	svcs, orderedSvcs := getTestComponentMap(
+		t, "testdata/yang", testModelSet,
 		orderSecondBComp,
 		orderFourthComp,
 		orderSecondAComp,
@@ -265,9 +275,13 @@ Modules=vyatta-test-first-v1
 ModelSets=vyatta-v1`
 
 func TestComponentsSharingModule(t *testing.T) {
-	_, err := getModelSet(t, "testdata/yang",
-		firstComp,
-		otherFirstSharingSameModuleComp)
+	ms, err := getModelSet(t, "testdata/yang")
+	if err != nil {
+		t.Fatalf("Error creating modelset: %s", err)
+	}
+	_, err = CreateComponentNSMappings(
+		ms, testModelSet,
+		getComponentConfigs(t, firstComp, otherFirstSharingSameModuleComp))
 	if err != nil {
 		expMsgs := assert.NewExpectedMessages(
 			"net.vyatta.test.first",
@@ -290,9 +304,13 @@ Modules=vyatta-test-first-v1
 ModelSets=vyatta-v1`
 
 func TestComponentsSharingModel(t *testing.T) {
-	_, err := getModelSet(t, "testdata/yang",
-		firstComp,
-		otherFirstSharingSameModelComp)
+	ms, err := getModelSet(t, "testdata/yang")
+	if err != nil {
+		t.Fatalf("Error creating modelset: %s", err)
+	}
+	_, err = CreateComponentNSMappings(
+		ms, testModelSet,
+		getComponentConfigs(t, firstComp, otherFirstSharingSameModelComp))
 	if err != nil {
 		expMsgs := assert.NewExpectedMessages(
 			"Model 'net.vyatta.test.first'",
@@ -355,27 +373,39 @@ Modules=vyatta-test-unassigned-a-v1
 ModelSets=vyatta-v1`
 
 func TestSingleDefaultComponentDetected(t *testing.T) {
-	ms, err := getModelSet(t, "testdata/unassigned_yang",
-		firstCompForUnassignedTest,
-		secondCompForUnassignedTest,
-		defaultCompForUnassignedTest)
+	ms, err := getModelSet(t, "testdata/unassigned_yang")
 	if err != nil {
-		t.Fatalf("Unable to compile model set: %s\n", err.Error())
+		t.Fatalf("Error creating modelset: %s", err)
+	}
+	mappings, err := CreateComponentNSMappings(
+		ms, testModelSet,
+		getComponentConfigs(t,
+			firstCompForUnassignedTest,
+			secondCompForUnassignedTest,
+			defaultCompForUnassignedTest))
+	if err != nil {
+		t.Fatalf("Unable to create component mappings %s\n", err)
 	}
 
 	expDefSvcName := "net.vyatta.test.default"
-	if ms.compMappings.defaultComponent != expDefSvcName {
+	if mappings.DefaultComponent() != expDefSvcName {
 		t.Fatalf("Exp component name: %s\nAct component name: %s\n",
-			expDefSvcName, ms.compMappings.defaultComponent)
+			expDefSvcName, mappings.DefaultComponent())
 	}
 }
 
 func TestMultipleDefaultComponentsDetected(t *testing.T) {
-	_, err := getModelSet(t, "testdata/unassigned_yang",
-		firstCompForUnassignedTest,
-		secondCompForUnassignedTest,
-		defaultCompForUnassignedTest,
-		secondDefaultCompForUnassignedTest)
+	ms, err := getModelSet(t, "testdata/unassigned_yang")
+	if err != nil {
+		t.Fatalf("Error creating modelset: %s", err)
+	}
+	_, err = CreateComponentNSMappings(
+		ms, testModelSet,
+		getComponentConfigs(t,
+			firstCompForUnassignedTest,
+			secondCompForUnassignedTest,
+			defaultCompForUnassignedTest,
+			secondDefaultCompForUnassignedTest))
 	if err != nil {
 		expMsgs := assert.NewExpectedMessages(
 			"Can't have 2 default components",
@@ -388,10 +418,16 @@ func TestMultipleDefaultComponentsDetected(t *testing.T) {
 }
 
 func TestDefaultComponentWithModulesDetected(t *testing.T) {
-	_, err := getModelSet(t, "testdata/unassigned_yang",
-		firstCompForUnassignedTest,
-		secondCompForUnassignedTest,
-		defaultCompWithModule)
+	ms, err := getModelSet(t, "testdata/unassigned_yang")
+	if err != nil {
+		t.Fatalf("Error creating modelset: %s", err)
+	}
+	_, err = CreateComponentNSMappings(
+		ms, testModelSet,
+		getComponentConfigs(t,
+			firstCompForUnassignedTest,
+			secondCompForUnassignedTest,
+			defaultCompWithModule))
 	if err != nil {
 		expMsgs := assert.NewExpectedMessages(
 			"Default component",
@@ -403,7 +439,8 @@ func TestDefaultComponentWithModulesDetected(t *testing.T) {
 }
 
 func TestUnassignedNamespacesAssignedToDefaultComponent(t *testing.T) {
-	componentMap, _ := getTestComponentMap(t, "testdata/unassigned_yang",
+	componentMap, _ := getTestComponentMap(
+		t, "testdata/unassigned_yang", testModelSet,
 		firstCompForUnassignedTest,
 		secondCompForUnassignedTest,
 		defaultCompForUnassignedTest)
@@ -458,7 +495,8 @@ func TestImportsRequiredForCheck(t *testing.T) {
 	tmpYangDir := createYangDir(t, "checkTest", schemas)
 	defer os.RemoveAll(tmpYangDir)
 
-	componentMap, _ := getTestComponentMap(t, tmpYangDir, vciComp.String())
+	componentMap, _ := getTestComponentMap(
+		t, tmpYangDir, testModelSet, vciComp.String())
 
 	checkNumberOfComponents(t, componentMap, 1)
 
@@ -489,13 +527,15 @@ func TestValidateCandidate(t *testing.T) {
 			[]string{conf.BaseModelSet},
 			[]string{"vyatta-required-for-check-v1"})
 
-	extMs, _ := getModelSet(t, tmpYangDir, vciComp.String())
+	extMs, _ := getModelSet(t, tmpYangDir)
+
+	mappings, _ := CreateComponentNSMappings(
+		extMs, testModelSet, getComponentConfigs(t, vciComp.String()))
 
 	compMgr := NewTestCompMgr(
 		t,
 		extMs,
-		conf.BaseModelSet,
-		getComponentConfigs(t, vciComp.String()))
+		mappings)
 
 	inputCfgAsJson := []byte(`
 		{

@@ -18,12 +18,15 @@ import (
 	rfc7951data "github.com/danos/encoding/rfc7951/data"
 	"github.com/danos/mgmterror"
 	"github.com/danos/utils/exec"
-	"github.com/danos/vci/conf"
 	"github.com/danos/yang/data/datanode"
-	"github.com/danos/yang/data/encoding"
 	yang "github.com/danos/yang/schema"
 	"github.com/godbus/dbus"
 )
+
+type ConfigMultiplexerFn func([][]byte, ModelSet) (*data.Node, error)
+
+// Needs to match configd: (*commitctx) LogCommitTime()
+type commitTimeLogFn func(string, time.Time)
 
 func log(output string) {
 	for _, line := range strings.Split(output, "\n") {
@@ -47,81 +50,13 @@ type ServiceManager interface {
 	IsActive(name string) (bool, error)
 }
 
-type componentMappings struct {
-	modelSetName      string
-	components        map[string]*component
-	nsMap             map[string]string
-	orderedComponents []string
-	defaultComponent  string
-}
-
-func createComponentMappings(
-	m yang.ModelSet,
-	modelSetName string,
-	compConfig []*conf.ServiceConfig,
-) (*componentMappings, error) {
-
-	modelToNamespaceMap, globalNSMap, defaultComponent, err :=
-		getModelToNamespaceMapsForModelSet(
-			m, modelSetName, compConfig)
-	if err != nil {
-		return nil, err
-	}
-
-	componentMap := getComponentMap(modelToNamespaceMap)
-
-	orderedComponents, err := getOrderedComponentsList(
-		modelSetName, defaultComponent, compConfig)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(componentMap) != len(orderedComponents) {
-		return nil, fmt.Errorf(
-			"Mismatch between number of ordered (%d) "+
-				"and unordered (%d) components.",
-			len(orderedComponents), len(componentMap))
-	}
-
-	return &componentMappings{
-			modelSetName:      modelSetName,
-			components:        componentMap,
-			nsMap:             globalNSMap,
-			orderedComponents: orderedComponents,
-			defaultComponent:  defaultComponent,
-		},
-		nil
-}
-
-type component struct {
-	name      string
-	modMap    map[string]struct{}
-	setFilter func(s yang.Node, d datanode.DataNode,
-		children []datanode.DataNode) bool
-	checkMap    map[string]struct{}
-	checkFilter func(s yang.Node, d datanode.DataNode,
-		children []datanode.DataNode) bool
-}
-
-func (c *component) FilterSetTree(n Node, dn datanode.DataNode) []byte {
-	filteredCandidate := yang.FilterTree(n, dn, c.setFilter)
-	return encoding.ToRFC7951(n, filteredCandidate)
-}
-
-func (c *component) FilterCheckTree(n Node, dn datanode.DataNode) []byte {
-	filteredCandidate := yang.FilterTree(n, dn, c.checkFilter)
-	return encoding.ToRFC7951(n, filteredCandidate)
-}
-
-func (c *component) HasConfiguration(n Node, dn datanode.DataNode) bool {
-	return string(c.FilterSetTree(n, dn)) != "{}"
-}
-
 // ComponentManager encapsulates bus operations to/from components, and service
 // queries against the components' service status.
 type ComponentManager interface {
 	OperationsManager
 	ServiceManager
+
+	GetComponentNSMappings() *ComponentMappings
 
 	ComponentValidation(
 		ModelSet,
@@ -155,7 +90,7 @@ type compMgr struct {
 	OperationsManager
 	ServiceManager
 
-	compMappings *componentMappings
+	compMappings *ComponentMappings
 }
 
 var _ OperationsManager = (*compMgr)(nil)
@@ -166,20 +101,18 @@ func NewCompMgr(
 	opsMgr OperationsManager,
 	svcMgr ServiceManager,
 	m yang.ModelSet,
-	modelSetName string,
-	compConfig []*conf.ServiceConfig,
+	mappings *ComponentMappings,
 ) *compMgr {
-	mappings, err := createComponentMappings(m, modelSetName, compConfig)
-	if err != nil {
-		fmt.Printf("Unable to create component mappings: %s\n", err)
-		return nil
-	}
 
 	return &compMgr{
 		OperationsManager: opsMgr,
 		ServiceManager:    svcMgr,
 		compMappings:      mappings,
 	}
+}
+
+func (cm *compMgr) GetComponentNSMappings() *ComponentMappings {
+	return cm.compMappings
 }
 
 // listActiveModels returns the topologically sorted list of models
@@ -193,8 +126,8 @@ func (cm *compMgr) listActiveModels(
 
 	out := make([]string, 0)
 
-	for _, modelName := range cm.compMappings.orderedComponents {
-		comp := cm.compMappings.components[modelName]
+	for _, modelName := range cm.compMappings.OrderedComponents() {
+		comp := cm.compMappings.Component(modelName)
 		active, err := cm.IsActive(comp.name)
 		if err != nil {
 			log(err.Error())
@@ -216,8 +149,8 @@ func (cm *compMgr) listActiveOrConfiguredModels(
 ) []string {
 
 	out := make([]string, 0)
-	for _, modelName := range cm.compMappings.orderedComponents {
-		comp := cm.compMappings.components[modelName]
+	for _, modelName := range cm.compMappings.OrderedComponents() {
+		comp := cm.compMappings.Component(modelName)
 
 		active, err := cm.IsActive(comp.name)
 		if err != nil {
@@ -254,8 +187,8 @@ func (cm *compMgr) ComponentValidation(
 	for _, modelName := range cm.listActiveOrConfiguredModels(m, dn) {
 		startTime := time.Now()
 
-		svc := cm.compMappings.components[modelName]
-		jsonTree := svc.FilterCheckTree(m, dn)
+		comp := cm.compMappings.Component(modelName)
+		jsonTree := comp.FilterCheckTree(m, dn)
 
 		err := cm.CheckConfigForModel(modelName, string(jsonTree))
 		if err != nil {
@@ -299,10 +232,10 @@ func (cm *compMgr) ComponentSetRunningWithLog(
 		for ns, _ := range *changedNSMap {
 			changedComps[cm.compMappings.nsMap[ns]] = true
 		}
-		changedComps[cm.compMappings.defaultComponent] = true
+		changedComps[cm.compMappings.DefaultComponent()] = true
 	}
 
-	for _, ordComp := range cm.compMappings.orderedComponents {
+	for _, ordComp := range cm.compMappings.OrderedComponents() {
 		if changedComps != nil {
 			if _, ok := changedComps[ordComp]; !ok {
 				log(fmt.Sprintf("\t'%s' hasn't changed.\n", ordComp))
@@ -310,12 +243,7 @@ func (cm *compMgr) ComponentSetRunningWithLog(
 			}
 		}
 		startTime := time.Now()
-		comp, ok := cm.compMappings.components[ordComp]
-		if !ok {
-			log(fmt.Sprintf("Unable to set running config for '%s' component.\n",
-				ordComp))
-			continue
-		}
+		comp := cm.compMappings.Component(ordComp)
 		log(fmt.Sprintf("\t'%s' has changed.\n", ordComp))
 
 		jsonTree := comp.FilterSetTree(m, dn)
@@ -349,9 +277,9 @@ func (cm *compMgr) ComponentGetRunning(
 				err)
 	}
 
-	var configs = make([][]byte, 0, len(cm.compMappings.components))
+	var configs = make([][]byte, 0, len(cm.compMappings.Components()))
 
-	for _, comp := range cm.compMappings.components {
+	for _, comp := range cm.compMappings.Components() {
 		// Build up JSON config, then decode ...
 		var jsonInput string
 		err := cm.StoreConfigByModelInto(
