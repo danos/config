@@ -22,12 +22,22 @@ override_dh_auto_build: vet
 override_dh_auto_test:
 	dh_auto_test -- $(GORACE) $(GOCOVER)
 
-# We do not vet vendor code
+# We do not vet vendor code.
+# There's a bug in go vet's detection of interface methods in Go1.10 and earlier
+# that surfaced following restructuring of the modelset_extension code. As this
+# only occurs for Debian 9 / Ubuntu 18.04, and it doesn't seem possible to turn
+# off the specific check (none of the go vet flags seem to work), we just disable
+# go vet for these legacy versions.
 vet:
-	if go doc cmd/vet >/dev/null 2>&1; then \
-		GOPATH=$(CURDIR)/$(GOBUILDDIR) go vet $$(find . -type f -name \*.go | \
-		xargs dirname | sort -u | grep -v "/vendor/"); \
+	if [ `go version | cut -d' ' -f3 | cut -c3- | cut -d. -f2` -le "10" ]; then \
+		echo "Disable go vet for go1.10 and earlier"; \
+	else \
+		if go doc cmd/vet >/dev/null 2>&1; then \
+			GOPATH=$(CURDIR)/$(GOBUILDDIR) go vet $$(find . -type f -name \*.go | \
+			xargs dirname | sort -u | grep -v "/vendor/"); \
+		fi \
 	fi
+
 
 
 
