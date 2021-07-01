@@ -1,3 +1,35 @@
+golang-github-danos-config (1.9) unstable; urgency=medium
+
+  [ William Ivory ]
+  * Sort deb11 build
+  * Create ServiceGetState() method.
+  * Make rfc7951Merger object and methods private.
+  * Fix copyrights.
+  * Rationalise model_extension.go
+  * Add ComponentManager interface and compmgrtest.
+  * Convert modelset extension to use VCI methods.
+  * Remove Dispatcher from CompilationExtensions.
+  * Remove logging of default namespace list
+
+  [ Paul Carson ]
+  * YANG: Support yang choices (Closes: VRVDR-6224)
+
+  [ John Southworth ]
+  * Remove DBus RPC policy adjustment
+
+  [ William Ivory ]
+  * Rename service to component in schema directory.
+  * Move component-related info in modelset into componentMappings object.
+  * Move compmgrtest.go
+  * Rework component manager
+  * Move ms.ServiceValidation() to compMgr.ComponentValidation()
+  * fixup
+  * Move Set/GetRunning and GetState from ms to compmgr
+  * Remove componentMappings from modelSet; make into more encapsulated object.
+  * Disable go vet for Go1.10 and earlier.
+
+ -- Paul Carson <paul.carson@intl.att.com>  Thu, 01 Jul 2021 13:54:29 +0100
+
 golang-github-danos-config (1.8) unstable; urgency=medium
 
   [ William Ivory ]
