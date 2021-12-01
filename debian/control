@@ -38,7 +38,6 @@ Depends:
  golang-github-danos-utils-tsort-dev,
  golang-github-danos-vci-dev (>= 0.3),
  golang-github-danos-yang-dev,
- golang-github-danos-yangd-dev,
  golang-github-fsnotify-fsnotify-dev,
  ${misc:Depends}
 Built-Using: ${misc:Built-Using}
